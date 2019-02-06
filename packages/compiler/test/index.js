@@ -7,12 +7,24 @@ function readFile(relativePath) {
     return fs.readFileSync(path.join(__dirname, relativePath)).toString();
 }
 
-// Create a Parser object from our grammar.
-const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+function pipe(value, ...operations) {
+    for (const op of operations) {
+        value = op(value);
+    }
+    return value;
+}
 
-// Parse something!
-parser.feed(readFile("./test.iki"));
+function parse(text) {
+    const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
+    try {
+        parser.feed(text);
+        return parser.results;
+    } catch (error) {
+        return error.message;
+    }
+}
 
-// parser.results is an array of possible parsings.
-console.log(parser.results);
-
+pipe("./test.iki",
+    readFile,
+    parse,
+    console.log);
