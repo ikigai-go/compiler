@@ -36,9 +36,9 @@ let addReferenceToScope (com: FileCompiler) (scope: Scope) name typ isMutable r 
     // TODO: Check if there's already a ref with same name in current scope
     ref, { scope with references = Map.add name ref scope.references }
 
-let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) = function
-    | Untyped.Literal(kind,_) ->
-        Literal kind
+let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
+    match e with
+    | Untyped.Literal(kind,_) -> Literal kind
     | Untyped.Ident(name, r) ->
         match scope.TryFind name with
         | Some ref -> Ident(ref, Some r)
@@ -175,3 +175,21 @@ let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExp
     match boe with
     | Untyped.Block block -> checkBlock com scope expected block |> Block
     | Untyped.Expr expr -> checkExpr com scope (Some expected) expr |> Expr
+
+let check file (ast: Untyped.FileAst): FileAst =
+    // TODO: Scope starts with: global values, imports, values declared in the file
+    let scope = { parent = None; references = Map.empty }
+    let com = FileCompiler(file)
+    let _scope, decls =
+        ((scope, []), ast.declarations) ||> List.fold (fun (scope, acc) decl ->
+            match decl with
+            // TODO: Exported values cannot be mutable
+            | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, body) ->
+                let t =
+                    match annotation with
+                    | Some x -> x.Type
+                    | None -> Any // TODO: Infer type from body
+                let ref, scope = addReferenceToScope com scope name t isMutable range
+                let body = checkExpr com scope (Some t) body
+                scope, ValueDeclaration(isExport, ref, body)::acc)
+    { declarations = List.rev decls }

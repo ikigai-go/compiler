@@ -10,12 +10,13 @@
     "watch-grammar": "chokidar 'src/Parser/grammar.ne' -c 'npm run build && npm run test'",
     "watch-test": "chokidar 'test/test.iki' -c 'npm run test'",
     "start": "concurrently 'npm:watch-*'",
-    "build": "nearleyc src/parser/grammar.ne -o src/Parser/grammar.js",
+    "build": "nearleyc src/parser/grammar.ne -o src/Parser/grammar.js && cp src/Parser/grammar.js build/Parser/",
     "test": "node test"
   },
   "author": "Ikigai contributors",
   "license": "MIT",
   "devDependencies": {
+    "@babel/core": "^7.3.3",
     "@babel/plugin-transform-modules-commonjs": "^7.2.0",
     "chokidar-cli": "^1.2.1",
     "concurrently": "^4.1.0",

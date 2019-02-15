@@ -58,6 +58,12 @@ type BinaryOperator =
     | BinaryAndBitwise
     | BinaryIn
     | BinaryInstanceOf
+    static member Parse = function
+        | "+" -> BinaryPlus
+        | "-" -> BinaryMinus
+        | "*" -> BinaryMultiply
+        | "/" -> BinaryDivide
+        | op -> failwithf "TODO: Other binary operators %s" op
 
 type LogicalOperator =
     | LogicalOr

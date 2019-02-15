@@ -18,7 +18,7 @@ function parse(text) {
     const parser = new nearley.Parser(nearley.Grammar.fromCompiled(grammar));
     try {
         parser.feed(text);
-        return parser.results;
+        return parser.results[0];
     } catch (error) {
         return error.message;
     }

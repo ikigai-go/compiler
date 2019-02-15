@@ -21,6 +21,10 @@ let identDeclaration (id: Reference) =
 let toPattern (e: PatternExpression): Pattern =
     Choice2Of2 e
 
+let varDeclaration range (ref: Reference) value =
+    let kind = if ref.isMutable then Let else Const
+    VariableDeclaration(identDeclaration ref |> toPattern, transformExpr value, kind)
+
 let transformLiteral kind: Expression =
     match kind with
     | NullLiteral -> upcast NullLiteral()
@@ -91,8 +95,7 @@ let transformStatement statement: Statement =
     | Assignment _
     | WhileLoop _ -> failwith "TODO"
     | Binding(ref, value, range) ->
-        let kind = if ref.isMutable then Let else Const
-        upcast VariableDeclaration(identDeclaration ref |> toPattern, transformExpr value, kind)
+        upcast varDeclaration range ref value
     | FlowControlStatement control ->
         transformFlowControl control
 
@@ -111,3 +114,16 @@ let transformBlockOrExpr boe: Choice<BlockStatement, Expression> =
     match boe with
     | Block block -> transformBlock block |> Choice1Of2
     | Expr expr -> transformExpr expr |> Choice2Of2
+
+let transformDeclaration decl: Choice<Babel.Statement, ModuleDeclaration> =
+    match decl with
+    | ValueDeclaration(isExport, ident, body) ->
+        let decl = varDeclaration None ident body
+        if not isExport then decl :> Babel.Statement |> Choice1Of2
+        else
+            ExportNamedDeclaration(decl)
+            :> ModuleDeclaration |> Choice2Of2
+
+let transform file (ast: FileAst): Babel.Program =
+    let decls = ast.declarations |> List.map transformDeclaration
+    Program(file, Array.ofList decls)

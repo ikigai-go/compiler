@@ -1,7 +1,9 @@
 namespace Ikigai.Compiler
 
+open Fable.Import
+
 type IPlatform =
-    abstract ReadFile: path: string -> Async<string>
+    abstract ReadFile: path: string -> JS.Promise<string>
 
 [<RequireQualifiedAccess>]
 module List =

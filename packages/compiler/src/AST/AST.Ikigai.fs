@@ -67,8 +67,11 @@ type LiteralKind =
 
 [<RequireQualifiedAccess>]
 module Untyped =
+    type FileAst =
+        { declarations: Declaration list }
+
     type Declaration =
-        | ValueDeclaration of isExport: bool * isMutable: bool * name: string * body: Expr
+        | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Annotation option * body: Expr
 
     type OperationKind =
         | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -132,8 +135,13 @@ module Untyped =
             | Operation(_,r)
             | Get(_,_,r) -> r
 
+// Typed AST
+
+type FileAst =
+    { declarations: Declaration list }
+
 type Declaration =
-    | ValueDeclaration of isExport: bool * isMutable: bool * name: string * body: Expr
+    | ValueDeclaration of isExport: bool * ident: Reference * body: Expr
 
 type OperationKind =
     | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
