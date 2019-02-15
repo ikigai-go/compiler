@@ -3,6 +3,18 @@ namespace Ikigai.Compiler.AST.Babel
 open Ikigai.Compiler
 open Ikigai.Compiler.AST
 
+// Redefine Choice as erased types for compatibility with Babel JSON
+[<Fable.Core.Erase>]
+type Choice<'T1,'T2> =
+    | Choice1Of2 of 'T1
+    | Choice2Of2 of 'T2
+
+[<Fable.Core.Erase>]
+type Choice<'T1,'T2,'T3> =
+    | Choice1Of3 of 'T1
+    | Choice2Of3 of 'T2
+    | Choice3Of3 of 'T3
+
 /// The type field is a string representing the AST variant type.
 /// Each subtype of Node is documented below with the specific string of its type field.
 /// You can use this field to determine which interface a node implements.

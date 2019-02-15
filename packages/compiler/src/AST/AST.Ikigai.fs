@@ -93,10 +93,13 @@ module Untyped =
         | Block of Block
         | Expr of Expr
 
+    type ElseIfOrBlock =
+        | ElseIf of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock
+        | ElseBlock of Block
+
     type FlowControl =
         | TryCatch of body: Block * catch: (string * SourceLocation * Block) option * finalizer: Block option
-        // TODO: Else block can also be IfThenElse
-        | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: Block option
+        | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
 
     type ReturnStatement =
         | Return of Expr
@@ -166,11 +169,15 @@ type BlockOrExpr =
         | Block b -> b.Type
         | Expr e -> e.Type
 
+type ElseIfOrBlock =
+    | ElseIf of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock
+    | ElseBlock of Block
+
 type FlowControl =
     // TODO: Enforce either catch or finalizer or both
     | TryCatch of body: Block * catch: (Reference * Block) option * finalizer: Block option
     // TODO: Else block can also be IfThenElse
-    | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: Block option
+    | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
     member this.Type =
         match this with
         | TryCatch(body,_,_) -> body.Type

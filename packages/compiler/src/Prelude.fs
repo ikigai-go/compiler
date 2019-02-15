@@ -1,5 +1,8 @@
 namespace Ikigai.Compiler
 
+type IPlatform =
+    abstract ReadFile: path: string -> Async<string>
+
 [<RequireQualifiedAccess>]
 module List =
     let isSingle = function
@@ -40,4 +43,18 @@ module List =
         xs |> List.iteri (fun i x -> ar.[i] <- f i x)
         ar
 
+[<RequireQualifiedAccess>]
+module Naming =
+    let isIdentChar index (c: char) =
+        let code = int c
+        c = '_'
+        || c = '$'
+        || (65 <= code && code <= 90)   // a-z
+        || (97 <= code && code <= 122)  // A-Z
+        // Digits are not allowed in first position, see #1397
+        || (index > 0 && 48 <= code && code <= 57) // 0-9
 
+    let hasIdentForbiddenChars (ident: string) =
+        let mutable i = 0
+        while i < ident.Length && (isIdentChar i ident.[i]) do i <- i + 1
+        i < ident.Length

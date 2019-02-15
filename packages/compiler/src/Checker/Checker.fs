@@ -101,6 +101,15 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) = funct
         let indexExpr = checkExpr com scope expected indexExpr
         Get(baseExpr, indexExpr, t, Some range)
 
+let checkElseIfOrBlock (com: FileCompiler) (scope: Scope) expected (eseIfOrBlock: Untyped.ElseIfOrBlock): ElseIfOrBlock =
+    match eseIfOrBlock with
+    | Untyped.ElseBlock b -> checkBlock com scope expected b |> ElseBlock
+    | Untyped.ElseIf(cond, thenBlock, elseIfOrBlock) ->
+        let cond = checkExpr com scope (Some Boolean) cond
+        let thenBlock = checkBlock com scope expected thenBlock
+        let elseIfOrBlock = checkElseIfOrBlock com scope expected elseIfOrBlock
+        ElseIf(cond, thenBlock, elseIfOrBlock)
+
 let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyped.FlowControl): FlowControl =
     match control with
     // TODO: Enforce either catch or finalizer or both
@@ -115,7 +124,7 @@ let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyp
         let cond = checkExpr com scope (Some Boolean) cond
         let thenBlock = checkBlock com scope expected thenBlock
         // TODO: If expected is not Void and elseBlock is None, add error
-        let elseBlock = elseBlock |> Option.map (checkBlock com scope expected)
+        let elseBlock = elseBlock |> Option.map (checkElseIfOrBlock com scope expected)
         IfThenElse(cond, thenBlock, elseBlock)
 
 let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statemement): Scope * Statemement =

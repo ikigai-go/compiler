@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const nearley = require("nearley");
-const grammar = require("../build/grammar.js");
+const grammar = require("../build/Parser/grammar.js");
 
 function readFile(relativePath) {
     return fs.readFileSync(path.join(__dirname, relativePath)).toString();

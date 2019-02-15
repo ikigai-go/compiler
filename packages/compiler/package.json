@@ -7,17 +7,20 @@
     "test": "test"
   },
   "scripts": {
-    "watch-grammar": "chokidar 'src/parser/grammar.ne' -c 'npm run build && npm run test'",
+    "watch-grammar": "chokidar 'src/Parser/grammar.ne' -c 'npm run build && npm run test'",
     "watch-test": "chokidar 'test/test.iki' -c 'npm run test'",
     "start": "concurrently 'npm:watch-*'",
-    "build": "nearleyc src/parser/grammar.ne -o build/grammar.js",
+    "build": "nearleyc src/parser/grammar.ne -o src/Parser/grammar.js",
     "test": "node test"
   },
-  "author": "Alfonso García-Caro",
+  "author": "Ikigai contributors",
   "license": "MIT",
   "devDependencies": {
+    "@babel/plugin-transform-modules-commonjs": "^7.2.0",
     "chokidar-cli": "^1.2.1",
-    "concurrently": "^4.1.0"
+    "concurrently": "^4.1.0",
+    "fable-compiler": "^2.2.0-beta-007",
+    "fable-splitter": "^2.1.5"
   },
   "dependencies": {
     "moo": "^0.5.0",
