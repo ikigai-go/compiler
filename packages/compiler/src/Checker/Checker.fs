@@ -26,14 +26,15 @@ type Scope =
         | Some ref -> Some ref
         | None -> this.parent |> Option.bind (fun s -> s.TryFind name)
 
-let addReferenceToScope (com: FileCompiler) (scope: Scope) name typ isMutable r =
-    let ref =
-        { name = name
-          refType = typ
-          isMutable = isMutable
-          isCompilerGenerated = false
-          declarationLocation = Some r }
+let makeReference name r isExport kind: Reference =
+    { name = name
+      kind = kind
+      isExport = isExport
+      declarationLocation = Some r }
+
+let addLocalValueRefToScope (scope: Scope) name r typ isMutable =
     // TODO: Check if there's already a ref with same name in current scope
+    let ref = ValueRef(typ, isMutable, false) |> makeReference name r false
     ref, { scope with references = Map.add name ref scope.references }
 
 let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
@@ -52,7 +53,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
                     // TODO: Infer type if function is passed as argument (expected type)
                     // or add an error
                     | None -> Any
-                let ref, scope = addReferenceToScope com scope arg.name t false arg.range
+                let ref, scope = addLocalValueRefToScope scope arg.name arg.range t false
                 // Using the accumulated scope here is intentional, in JS optional arguments
                 // can refer to previous arguments as default value `add(x, y=x)`
                 let defValue = arg.defaultValue |> Option.map (checkExpr com scope (Some t))
@@ -116,7 +117,7 @@ let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyp
     | Untyped.TryCatch(body, catch, finalizer) ->
         let body = checkBlock com scope expected body
         let catch = catch |> Option.map (fun (name, r, block) ->
-            let ref, scope = addReferenceToScope com scope name Any false r
+            let ref, scope = addLocalValueRefToScope scope name r Any false
             ref, checkBlock com scope expected block)
         let finalizer = finalizer |> Option.map (checkBlock com scope expected)
         TryCatch(body, catch, finalizer)
@@ -135,13 +136,14 @@ let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statem
     | Untyped.Binding((ident, identRange), isMutable, annotation, value, range) ->
         // TODO: Infer expected type from annotation if present
         let value = checkExpr com scope None value
-        let ref, scope = addReferenceToScope com scope ident value.Type isMutable identRange
+        let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
         scope, Binding(ref, value, range)
     | Untyped.FlowControlStatement control ->
         let control = checkFlowControl com scope Void control
         scope, FlowControlStatement control
 
 let checkBlock (com: FileCompiler) (scope: Scope) expected (block: Untyped.Block): Block =
+    let scope = { parent = Some scope; references = Map.empty }
     let statements, ret =
         match expected, block.returnStatement with
         | Void, Some ret ->
@@ -177,19 +179,56 @@ let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExp
     | Untyped.Expr expr -> checkExpr com scope (Some expected) expr |> Expr
 
 let check file (ast: Untyped.FileAst): FileAst =
-    // TODO: Scope starts with: global values, imports, values declared in the file
-    let scope = { parent = None; references = Map.empty }
     let com = FileCompiler(file)
-    let _scope, decls =
-        ((scope, []), ast.declarations) ||> List.fold (fun (scope, acc) decl ->
+    let scope = getGlobalScope com ast
+    let decls =
+        ([], ast.declarations) ||> List.fold (fun acc decl ->
             match decl with
-            // TODO: Exported values cannot be mutable
-            | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, body) ->
-                let t =
-                    match annotation with
-                    | Some x -> x.Type
-                    | None -> Any // TODO: Infer type from body
-                let ref, scope = addReferenceToScope com scope name t isMutable range
-                let body = checkExpr com scope (Some t) body
-                scope, ValueDeclaration(isExport, ref, body)::acc)
+            | Untyped.TypeDeclaration _ -> acc
+            | Untyped.ValueDeclaration(_isExport, _isMutable, name, range, annotation, body) ->
+                // TODO: Find reference in scope and get type instead of checking the annotation
+                let ref =
+                    match Map.tryFind name scope.references with
+                    | Some ref -> ref
+                    | None -> failwithf "Unexpected: reference not found in scope %s (%A)" name range
+                let body = checkExpr com scope (Some ref.Type) body
+                ValueDeclaration(ref, body)::acc)
     { declarations = List.rev decls }
+
+let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
+    let rec resolveReference declMap scope decl: Reference =
+        let getReferenceFromScopeOrMap declMap (scope: Scope) name =
+            match Map.tryFind name scope.references with
+            | Some ref -> ref
+            | None ->
+                match Map.tryFind name declMap with
+                | Some decl -> resolveReference declMap scope decl
+                | None -> failwithf "Cannot find reference in scope %s" name
+        match decl with
+        | Untyped.TypeDeclaration decl ->
+            match decl with
+            | Untyped.SkillDeclaration _ -> failwith "TODO: Make Skill reference"
+            | Untyped.TrainDeclaration _ -> failwith "TODO: Make Train reference"
+        // TODO: Exported values cannot be mutable
+        | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, _) ->
+            let t =
+                match annotation with
+                | Some x -> x.Type
+                | None -> Any // TODO: Infer type from body
+            ValueRef(t, isMutable, false)
+            |> makeReference name range isExport
+    let declMap =
+        (Map.empty, ast.declarations) ||> List.fold (fun acc decl ->
+            match decl with
+            | Untyped.TypeDeclaration typeDecl ->
+                match typeDecl with
+                | Untyped.SkillDeclaration((name,_),_,_) -> Map.add name decl acc
+                | Untyped.TrainDeclaration(t, skill, _) ->
+                    let name = skill + "<" + t.Name + ">"
+                    Map.add name decl acc
+            | Untyped.ValueDeclaration(_,_,name,_,_,_) -> Map.add name decl acc)
+    // TODO: Scope starts with: global values, imports
+    ({ parent = None; references = Map.empty }, ast.declarations)
+    ||> List.fold (fun scope decl ->
+        let ref = resolveReference declMap scope decl
+        { scope with references = Map.add ref.name ref scope.references })

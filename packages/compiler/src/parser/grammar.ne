@@ -5,13 +5,15 @@
 const moo = require('moo')
 const interop = require('./Interop')
 
-const keyword = ["true", "false", "null", "const", "mutable"];
+const keyword = ["true", "false", "null", "const", "mutable", "skill", "train", "for"];
 
 const lexer = moo.compile({
     '{': '{',
     '}': '}',
     '[': '[',
     ']': ']',
+    '<': '<',
+    '>': '>',
     ',': ',',
     ':': ':',
     ';': ';',
@@ -20,6 +22,7 @@ const lexer = moo.compile({
         match: /[a-zA-Z_][0-9a-zA-Z_]+/,
         type: moo.keywords({ keyword })
     },
+    endLine: /[\t ]*(;|\r?\n)/,
     space: { match: /\s+/, lineBreaks: true },
     number: /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/,
     string: /"(?:[^"\\]|.)*"/, // TODO: template strings
@@ -30,10 +33,20 @@ const lexer = moo.compile({
 
 @lexer lexer
 
-module -> (_ valueDeclaration):* _
+module -> (_ declaration):* _
     {% d => interop.makeUntypedAst(d[0].map(x => x[1])) %}
 
-valueDeclaration -> "const" _ identifier _ "=" _ expression ";":?
+declaration ->
+      typeDeclaration {% id %}
+    | valueDeclaration {% id %}
+
+typeDeclaration ->
+      skillDeclaration {% id %}
+    | trainDeclaration {% id %}
+
+skillDeclaration -> "skill" __ identifier _ "{" _ "}"
+
+valueDeclaration -> "const" __ identifier _ "=" _ expression %endLine
     {% d => interop.makeValueDeclaration(false, d[2], d[6]) %}
 
 identifier -> %identifier {% d => d[0].value %}
@@ -53,3 +66,4 @@ binaryOperation -> expression _ %binaryOperator _ expression
      {% d => interop.makeBinaryOperation(d[2].value, d[0], d[4]) %}
 
 _ -> null | %space {% d => null %}
+__ ->  %space {% d => null %}

@@ -21,8 +21,11 @@ let identDeclaration (id: Reference) =
 let toPattern (e: PatternExpression): Pattern =
     Choice2Of2 e
 
+let nullStatement() =
+    NullLiteral() |> ExpressionStatement :> Babel.Statement
+
 let varDeclaration range (ref: Reference) value =
-    let kind = if ref.isMutable then Let else Const
+    let kind = if ref.IsMutable then Let else Const
     VariableDeclaration(identDeclaration ref |> toPattern, transformExpr value, kind)
 
 let transformLiteral kind: Expression =
@@ -117,9 +120,10 @@ let transformBlockOrExpr boe: Choice<BlockStatement, Expression> =
 
 let transformDeclaration decl: Choice<Babel.Statement, ModuleDeclaration> =
     match decl with
-    | ValueDeclaration(isExport, ident, body) ->
+    | TypeDeclaration _ -> nullStatement() |> Choice1Of2 // TODO
+    | ValueDeclaration(ident, body) ->
         let decl = varDeclaration None ident body
-        if not isExport then decl :> Babel.Statement |> Choice1Of2
+        if not ident.isExport then decl :> Babel.Statement |> Choice1Of2
         else
             ExportNamedDeclaration(decl)
             :> ModuleDeclaration |> Choice2Of2

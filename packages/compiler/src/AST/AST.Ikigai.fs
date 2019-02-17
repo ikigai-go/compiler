@@ -4,7 +4,11 @@ open System
 open Ikigai.Compiler
 open Ikigai.Compiler.AST
 
-type Entity = Entity
+type Entity(name, genArgs, range) =
+    member __.Name: string = name
+    member __.GenericArguments: string list = genArgs
+    member __.DeclarationLocation: SourceLocation = range
+    // TODO: Members
 
 type ArgumentType =
     { argType: Type; isOptional: bool }
@@ -35,6 +39,20 @@ type Annotation =
     | Number
     | FunctionType of argTypes: ArgumentAnnotation list * hasSpread: bool * returnType: Annotation
     | GenericParam of name: string
+    | DeclaredType of name: string * genericArgs: string list
+    // | Union of Type list // Typescript-like unions
+    // | Enum
+    member this.Name: string =
+        match this with
+        | Any -> "any"
+        | Void -> "void"
+        | Null -> "null"
+        | Boolean -> "boolean"
+        | String -> "string"
+        | Number -> "number"
+        | FunctionType _ -> "function" // TODO
+        | GenericParam name -> name
+        | DeclaredType(name,_) -> name // TODO: Add genericArgs?
     member this.Type: Type =
         match this with
         | Any -> Type.Any
@@ -48,6 +66,7 @@ type Annotation =
                                                     isOptional = a.isOptional })
             Type.FunctionType(args, hasSpread, ret.Type)
         | GenericParam name -> Type.GenericParam name
+        | DeclaredType _ -> failwith "TODO: Search for type in scope"
 
 type LiteralKind =
     | NullLiteral
@@ -65,13 +84,27 @@ type LiteralKind =
         | NumberLiteral _ -> Number
         // | RegexLiteral _ -> failwith "TODO: Native types"
 
+type RangedName = string * SourceLocation
+
 [<RequireQualifiedAccess>]
 module Untyped =
+
     type FileAst =
         { declarations: Declaration list }
 
     type Declaration =
+        | TypeDeclaration of TypeDeclaration
         | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Annotation option * body: Expr
+
+    type Signature =
+        | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Annotation
+
+    type Member =
+        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Annotation option * body: Expr
+
+    type TypeDeclaration =
+        | SkillDeclaration of name: RangedName * generic: string * Signature list
+        | TrainDeclaration of trainedType: Annotation * skillName: string * Member list
 
     type OperationKind =
         | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -79,6 +112,11 @@ module Untyped =
         | BinaryOperation of BinaryOperator * left:Expr * right:Expr
         | LogicalOperation of LogicalOperator * left:Expr * right:Expr
         | TernaryOperation of condition: Expr * thenExpr:Expr * elseExpr:Expr
+
+    type SignatureArgument =
+        { name: string
+          annotation: Annotation
+          isOptional: bool }
 
     type Argument =
         { name: string
@@ -110,7 +148,7 @@ module Untyped =
 
     type Statemement =
         | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
-        | Binding of ident: (string * SourceLocation) * isMutable: bool * annotation: Annotation option * value: Expr * range: SourceLocation
+        | Binding of ident: RangedName * isMutable: bool * annotation: Annotation option * value: Expr * range: SourceLocation
         | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
         | WhileLoop of guard: Expr * body: Block * range: SourceLocation
         // | ForLoop
@@ -140,8 +178,19 @@ module Untyped =
 type FileAst =
     { declarations: Declaration list }
 
+type Signature =
+    | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Type
+
+type Member =
+    | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: Expr
+
+type TypeDeclaration =
+    | SkillDeclaration of name: RangedName * generic: string * Signature list
+    | TrainDeclaration of trainedType: Type * skill: Reference * Member list
+
 type Declaration =
-    | ValueDeclaration of isExport: bool * ident: Reference * body: Expr
+    | TypeDeclaration of TypeDeclaration
+    | ValueDeclaration of ident: Reference * body: Expr
 
 type OperationKind =
     | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -150,12 +199,29 @@ type OperationKind =
     | LogicalOperation of LogicalOperator * left:Expr * right:Expr
     | TernaryOperation of condition: Expr * thenExpr:Expr * elseExpr:Expr
 
+type ReferenceKind =
+    | ValueRef of valType: Type * isMutable: bool * isCompilerGenerated: bool
+    | TypeRef of members: Signature list
+
 type Reference =
     { name: string
-      refType: Type
-      isMutable: bool
-      isCompilerGenerated: bool
+      kind: ReferenceKind
+      isExport: bool
       declarationLocation: SourceLocation option }
+    member this.IsMutable =
+        match this.kind with
+        | ValueRef(_,isMutable,_) -> isMutable
+        | TypeRef _ -> false
+    member this.Type =
+        match this.kind with
+        | ValueRef(t,_,_) -> t
+        // TODO: How to type type references when used as expressions?
+        | TypeRef _ -> Any
+
+type SignatureArgument =
+    { name: string
+      sigType: Type
+      isOptional: bool }
 
 type Argument =
     { reference: Reference
@@ -225,10 +291,10 @@ type Expr =
     member this.Type =
         match this with
         | Literal k -> k.Type
-        | Ident(ref, _) -> ref.refType
+        | Ident(ref, _) -> ref.Type
         | Function(args, hasSpread, body) ->
             let argTypes = args |> List.map (fun a ->
-                { argType = a.reference.refType; isOptional = Option.isSome a.defaultValue })
+                { argType = a.reference.Type; isOptional = Option.isSome a.defaultValue })
             FunctionType(argTypes, hasSpread, body.Type)
         | Operation(_,t,_) -> t
         | Get(_,_,t,_) -> t
