@@ -45,6 +45,15 @@ module List =
         xs |> List.iteri (fun i x -> ar.[i] <- f i x)
         ar
 
+    let choosePartition (f: 'a -> 'b option) (xs: 'a list): 'b list * 'a list =
+        let mutable lucky = []
+        let mutable unlucky = []
+        xs |> List.iter (fun x ->
+            match f x with
+            | Some x -> lucky <- x::lucky
+            | None -> unlucky <- x::unlucky)
+        List.rev lucky, List.rev unlucky
+
 [<RequireQualifiedAccess>]
 module Naming =
     let isIdentChar index (c: char) =
@@ -60,3 +69,6 @@ module Naming =
         let mutable i = 0
         while i < ident.Length && (isIdentChar i ident.[i]) do i <- i + 1
         i < ident.Length
+
+    let trainName skillName typeName =
+        skillName + "$" + typeName

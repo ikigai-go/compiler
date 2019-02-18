@@ -1,5 +1,5 @@
-# http://www.json.org/
-# http://www.asciitable.com/
+# Useful as reference: https://github.com/ballercat/walt/blob/master/packages/walt-compiler/src/parser/grammar/grammar.ne
+
 @{%
 
 const moo = require('moo')
@@ -37,14 +37,19 @@ module -> (_ declaration):* _
     {% d => interop.makeUntypedAst(d[0].map(x => x[1])) %}
 
 declaration ->
-      typeDeclaration {% id %}
-    | valueDeclaration {% id %}
-
-typeDeclaration ->
       skillDeclaration {% id %}
     | trainDeclaration {% id %}
+    | valueDeclaration {% id %}
 
-skillDeclaration -> "skill" __ identifier _ "{" _ "}"
+skillDeclaration -> "skill" __ identifier _ "<" _ identifier _ ">" _ "{" (_ signature):* _ "}"
+    {% id %}
+
+signature -> _ {% id %}
+
+trainDeclaration -> "train" __ identifier _ "<" _ identifier _ ">" _ "{" (_ member):* _ "}"
+    {% id %}
+
+member -> _ {% id %}
 
 valueDeclaration -> "const" __ identifier _ "=" _ expression %endLine
     {% d => interop.makeValueDeclaration(false, d[2], d[6]) %}

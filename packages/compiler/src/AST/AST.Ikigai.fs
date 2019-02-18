@@ -10,33 +10,14 @@ type ArgumentType =
 type ArgumentAnnotation =
     { annotation: Annotation; isOptional: bool }
 
-type Type =
+type Primitive =
     | Any
     | Void // Undefined
     | Null
     | Boolean
     | String
     | Number
-    | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type
-    | GenericParam of name: string
-    | DeclaredType of Reference * genericArgs: Type list
-    | Union of Type list // Typescript-like unions
-    | Enum
-
-[<RequireQualifiedAccess>]
-type Annotation =
-    | Any
-    | Void
-    | Null
-    | Boolean
-    | String
-    | Number
-    | FunctionType of argTypes: ArgumentAnnotation list * hasSpread: bool * returnType: Annotation
-    | GenericParam of name: string
-    | DeclaredType of name: string * genericArgs: string list
-    // | Union of Type list // Typescript-like unions
-    // | Enum
-    member this.Name: string =
+    member this.Name =
         match this with
         | Any -> "any"
         | Void -> "void"
@@ -44,9 +25,35 @@ type Annotation =
         | Boolean -> "boolean"
         | String -> "string"
         | Number -> "number"
-        | FunctionType _ -> "function" // TODO
+
+type Type =
+    | Primitive of Primitive
+    | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type
+    | GenericParam of name: string
+    | DeclaredType of Reference * genericArgs: Type list
+    // | Union of Type list // Typescript-like unions
+    // | Enum
+    member this.Name: string =
+        match this with
+        | Primitive p -> p.Name
+        | FunctionType _ -> "function" // Not a named type
         | GenericParam name -> name
-        | DeclaredType(name,_) -> name // TODO: Add genericArgs?
+        | DeclaredType(ref,_) -> ref.name // Generic args are not included in the reference name
+
+[<RequireQualifiedAccess>]
+type Annotation =
+    | Primitive of Primitive
+    | FunctionType of argTypes: ArgumentAnnotation list * hasSpread: bool * returnType: Annotation
+    | GenericParam of name: string
+    | DeclaredType of name: string * genericArgs: string list
+    // | Union of Type list // Typescript-like unions
+    // | Enum
+    member this.Name: string =
+        match this with
+        | Primitive p -> p.Name
+        | FunctionType _ -> "function" // Not a named type
+        | GenericParam name -> name
+        | DeclaredType(name,_) -> name // Generic args are not included in the reference name
 
 type LiteralKind =
     | NullLiteral
@@ -73,18 +80,15 @@ module Untyped =
         { declarations: Declaration list }
 
     type Declaration =
-        | TypeDeclaration of isExport: bool * TypeDeclaration
         | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Annotation option * body: Expr
+        | SkillDeclaration of isExport: bool * name: RangedName * generic: string * Signature list
+        | TrainDeclaration of isExport: bool * skillName: string * trainedType: Annotation * range: SourceLocation * Member list
 
     type Signature =
         | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Annotation
 
     type Member =
-        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Annotation option * body: Expr
-
-    type TypeDeclaration =
-        | SkillDeclaration of name: RangedName * generic: string * Signature list
-        | TrainDeclaration of trainedType: Annotation * skillName: string * Member list
+        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Annotation option * body: BlockOrExpr
 
     type OperationKind =
         | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -162,15 +166,12 @@ type Signature =
     | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Type
 
 type Member =
-    | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: Expr
-
-type TypeDeclaration =
-    | SkillDeclaration of name: RangedName * generic: string * Signature list
-    | TrainDeclaration of trainedType: Type * skill: Reference * Member list
+    | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: BlockOrExpr
 
 type Declaration =
-    | TypeDeclaration of TypeDeclaration
     | ValueDeclaration of ident: Reference * body: Expr
+    // | SkillDeclaration of name: RangedName * generic: string * Signature list
+    | TrainDeclaration of isExport: bool * skill: Reference * trainedType: Type * Member list
 
 type OperationKind =
     | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -182,6 +183,7 @@ type OperationKind =
 type ReferenceKind =
     | ValueRef of valType: Type * isMutable: bool * isCompilerGenerated: bool
     | SkillRef of generic: string * members: Signature list
+    | TrainRef of skillRef: Reference * trainedType: Type
 
 type Reference =
     { name: string
@@ -196,7 +198,7 @@ type Reference =
         match this.kind with
         | ValueRef(t,_,_) -> t
         // TODO: How to type type references when used as expressions?
-        | _ -> Any
+        | _ -> Primitive Any
 
 type SignatureArgument =
     { name: string
@@ -213,7 +215,7 @@ type Block =
     member this.Type =
         match this.returnStatement with
         | Some r -> r.Type
-        | None -> Void
+        | None -> Primitive Void
 
 type BlockOrExpr =
     | Block of Block
@@ -268,9 +270,9 @@ type Expr =
     // | DecisionTree of Expr * targets: (Ident list * Expr) list
     // | DecisionTreeSuccess of targetIndex: int * boundValues: Expr list * Type
 
-    member this.Type =
+    member this.Type: Type =
         match this with
-        | Literal k -> k.Type
+        | Literal k -> Primitive k.Type
         | Ident(ref, _) -> ref.Type
         | Function(args, hasSpread, body) ->
             let argTypes = args |> List.map (fun a ->

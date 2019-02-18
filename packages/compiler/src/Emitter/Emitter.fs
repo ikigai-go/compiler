@@ -4,16 +4,21 @@ open Ikigai.Compiler.AST
 open Ikigai.Compiler.AST.Ikigai
 open Ikigai.Compiler.AST.Babel
 
+let memberFromName name: Expression * bool =
+    if Naming.hasIdentForbiddenChars name
+    then upcast StringLiteral name, true
+    else upcast Identifier name, false
+
 let memberFromExpr memberExpr: Expression * bool =
     match memberExpr with
-    | Literal (StringLiteral name) ->
-        if Naming.hasIdentForbiddenChars name
-        then upcast StringLiteral name, true
-        else upcast Identifier name, false
+    | Literal (StringLiteral name) -> memberFromName name
     | e -> transformExpr e, true
 
 let ident range (id: Reference) =
     Identifier(id.name, ?loc=range)
+
+let identFromName range name =
+    Identifier(name, ?loc=range)
 
 let identDeclaration (id: Reference) =
     Identifier(id.name, ?loc=id.declarationLocation)
@@ -26,7 +31,7 @@ let nullStatement() =
 
 let varDeclaration range (ref: Reference) value =
     let kind = if ref.IsMutable then Let else Const
-    VariableDeclaration(identDeclaration ref |> toPattern, transformExpr value, kind)
+    VariableDeclaration(identDeclaration ref |> toPattern, value, kind)
 
 let transformLiteral kind: Expression =
     match kind with
@@ -40,16 +45,19 @@ let transformLiteral kind: Expression =
         then upcast UnaryExpression(UnaryMinus, NumericLiteral(x * -1.))
         else upcast NumericLiteral x
 
+// TODO: Check default values, spread
+let transformArgIdents hasSpread (args: Argument list) =
+    args |> Seq.map (fun a ->
+        identDeclaration a.reference |> toPattern) |> Seq.toArray
+
 let transformExpr = function
     | Literal kind ->
         transformLiteral kind
     | Ident(ref, r) ->
         upcast ident r ref
     | Function(args, hasSpread, body) ->
-        // TODO: Check default values, spread
-        let args = args |> List.map (fun a ->
-            identDeclaration a.reference |> toPattern)
-        upcast ArrowFunctionExpression(Array.ofList args, transformBlockOrExpr body)
+        let args = transformArgIdents hasSpread args
+        upcast ArrowFunctionExpression(args, transformBlockOrExpr body)
     | Operation(kind, _, range) ->
         match kind with
         | Call(baseExpr, args, isCons, hasSpread) ->
@@ -98,7 +106,7 @@ let transformStatement statement: Statement =
     | Assignment _
     | WhileLoop _ -> failwith "TODO"
     | Binding(ref, value, range) ->
-        upcast varDeclaration range ref value
+        transformExpr value |> varDeclaration range ref :> _
     | FlowControlStatement control ->
         transformFlowControl control
 
@@ -118,15 +126,41 @@ let transformBlockOrExpr boe: Choice<BlockStatement, Expression> =
     | Block block -> transformBlock block |> Choice1Of2
     | Expr expr -> transformExpr expr |> Choice2Of2
 
+let transformBlockOrExprAsBlock boe: BlockStatement =
+    match boe with
+    | Block block -> transformBlock block
+    | Expr expr ->
+        transformExpr expr
+        |> ReturnStatement :> Babel.Statement
+        |> Array.singleton
+        |> BlockStatement
+
+let declareModuleVar isExport isMutable varName r (value: Expression) =
+    let kind = if isMutable then Let else Const
+    let var = identFromName r varName |> toPattern
+    let varDeclaration = VariableDeclaration(var, value, kind)
+    if not isExport then
+        varDeclaration :> Babel.Statement |> Choice1Of2
+    else
+        ExportNamedDeclaration(varDeclaration)
+        :> ModuleDeclaration |> Choice2Of2
+
 let transformDeclaration decl: Choice<Babel.Statement, ModuleDeclaration> =
     match decl with
-    | TypeDeclaration _ -> nullStatement() |> Choice1Of2 // TODO
-    | ValueDeclaration(ident, body) ->
-        let decl = varDeclaration None ident body
-        if not ident.isExport then decl :> Babel.Statement |> Choice1Of2
-        else
-            ExportNamedDeclaration(decl)
-            :> ModuleDeclaration |> Choice2Of2
+    | TrainDeclaration(isExport, skill, trained, members) ->
+        let name = Naming.trainName skill.name trained.Name
+        members |> Seq.map (function
+            | Method((name,_), args, hasSpread, _, body) ->
+                let args = transformArgIdents hasSpread args
+                let body = transformBlockOrExprAsBlock body
+                let prop, computed = memberFromName name
+                ObjectMethod(ObjectMeth, prop, args, body, computed_=computed) |> Choice2Of3)
+        |> Seq.toArray
+        |> ObjectExpression
+        |> declareModuleVar isExport false name None
+    | ValueDeclaration(i, body) ->
+        transformExpr body
+        |> declareModuleVar i.isExport i.IsMutable i.name i.declarationLocation
 
 let transform file (ast: FileAst): Babel.Program =
     let decls = ast.declarations |> List.map transformDeclaration
