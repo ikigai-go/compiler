@@ -18,6 +18,9 @@ type FileCompiler(file: File) =
         this.AddError(msg, ?range=range)
         NullLiteral |> Literal
 
+// TODO: Enforce scope naming rules
+// - Check if there's already a ref with same name in current scope
+// - Check no reference starts with <skillname>$
 type Scope =
     { references: Map<string, Reference>
       parent: Scope option }
@@ -25,6 +28,10 @@ type Scope =
         match Map.tryFind name this.references with
         | Some ref -> Some ref
         | None -> this.parent |> Option.bind (fun s -> s.TryFind name)
+    member this.Find(name: string) =
+        match this.TryFind name with
+        | Some ref -> ref
+        | None -> failwithf "Cannot find reference in scope: %s" name
 
 let makeReference name r isExport kind: Reference =
     { name = name
@@ -33,9 +40,25 @@ let makeReference name r isExport kind: Reference =
       declarationLocation = Some r }
 
 let addLocalValueRefToScope (scope: Scope) name r typ isMutable =
-    // TODO: Check if there's already a ref with same name in current scope
     let ref = ValueRef(typ, isMutable, false) |> makeReference name r false
     ref, { scope with references = Map.add name ref scope.references }
+
+let rec getTypeFromAnnotation (findRef: string->Reference) (annotation: Annotation) =
+    match annotation with
+    | Annotation.Any -> Type.Any
+    | Annotation.Void -> Type.Void
+    | Annotation.Null -> Type.Null
+    | Annotation.Boolean -> Type.Boolean
+    | Annotation.String -> Type.String
+    | Annotation.Number -> Type.Number
+    | Annotation.FunctionType(args, hasSpread, ret) ->
+        let args = args |> List.map (fun a ->
+            { argType = getTypeFromAnnotation findRef a.annotation
+              isOptional = a.isOptional })
+        Type.FunctionType(args, hasSpread, getTypeFromAnnotation findRef ret)
+    | Annotation.GenericParam name -> GenericParam name
+    | Annotation.DeclaredType(name, genArgs) ->
+        DeclaredType(findRef name, genArgs |> List.map GenericParam)
 
 let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
     match e with
@@ -49,7 +72,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
             ((scope, []), args) ||> List.fold (fun (scope, acc) arg ->
                 let t =
                     match arg.annotation with
-                    | Some x -> x.Type
+                    | Some x -> getTypeFromAnnotation scope.Find x
                     // TODO: Infer type if function is passed as argument (expected type)
                     // or add an error
                     | None -> Any
@@ -60,7 +83,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
                 scope, { reference = ref; defaultValue = defValue }::acc)
         let retType =
             match returnAnnotation with
-            | Some a -> a.Type
+            | Some a -> getTypeFromAnnotation scope.Find a
             | None -> Any // TODO: Infer from expression or expected type
         let body = checkBlockOrExpr com scope retType body
         Function(List.rev args, hasSpread, body)
@@ -196,39 +219,48 @@ let check file (ast: Untyped.FileAst): FileAst =
     { declarations = List.rev decls }
 
 let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
-    let rec resolveReference declMap scope decl: Reference =
-        let getReferenceFromScopeOrMap declMap (scope: Scope) name =
+    let rec resolveReference declMap scope decl: Reference option =
+        let findRef declMap (scope: Scope) name =
             match Map.tryFind name scope.references with
             | Some ref -> ref
             | None ->
-                match Map.tryFind name declMap with
-                | Some decl -> resolveReference declMap scope decl
-                | None -> failwithf "Cannot find reference in scope %s" name
+                Map.tryFind name declMap
+                |> Option.bind (resolveReference declMap scope)
+                |> Option.defaultWith (fun () -> failwithf "Cannot find reference in scope %s" name)
+        let checkSignature declMap scope = function
+            | Untyped.MethodSignature(name, args, hasSpread, returnType) ->
+                let args = args |> List.map (fun a ->
+                    { name = a.name
+                      sigType = getTypeFromAnnotation (findRef declMap scope) a.annotation
+                      isOptional = a.isOptional })
+                MethodSignature(name, args, hasSpread, getTypeFromAnnotation (findRef declMap scope) returnType)
         match decl with
-        | Untyped.TypeDeclaration decl ->
+        | Untyped.TypeDeclaration(isExport, decl) ->
             match decl with
-            | Untyped.SkillDeclaration _ -> failwith "TODO: Make Skill reference"
-            | Untyped.TrainDeclaration _ -> failwith "TODO: Make Train reference"
+            | Untyped.SkillDeclaration((name, range), generic, signatures) ->
+                let signatures = signatures |> List.map (checkSignature declMap scope)
+                SkillRef(generic, signatures)
+                |> makeReference name range isExport |> Some
+            | Untyped.TrainDeclaration _ -> None
         // TODO: Exported values cannot be mutable
         | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, _) ->
             let t =
                 match annotation with
-                | Some x -> x.Type
+                | Some x -> getTypeFromAnnotation (findRef declMap scope) x
                 | None -> Any // TODO: Infer type from body
             ValueRef(t, isMutable, false)
-            |> makeReference name range isExport
+            |> makeReference name range isExport |> Some
     let declMap =
         (Map.empty, ast.declarations) ||> List.fold (fun acc decl ->
             match decl with
-            | Untyped.TypeDeclaration typeDecl ->
+            | Untyped.TypeDeclaration(_,typeDecl) ->
                 match typeDecl with
                 | Untyped.SkillDeclaration((name,_),_,_) -> Map.add name decl acc
-                | Untyped.TrainDeclaration(t, skill, _) ->
-                    let name = skill + "<" + t.Name + ">"
-                    Map.add name decl acc
+                | Untyped.TrainDeclaration _ -> acc
             | Untyped.ValueDeclaration(_,_,name,_,_,_) -> Map.add name decl acc)
     // TODO: Scope starts with: global values, imports
     ({ parent = None; references = Map.empty }, ast.declarations)
     ||> List.fold (fun scope decl ->
-        let ref = resolveReference declMap scope decl
-        { scope with references = Map.add ref.name ref scope.references })
+        match resolveReference declMap scope decl with
+        | None -> scope
+        | Some ref -> { scope with references = Map.add ref.name ref scope.references })

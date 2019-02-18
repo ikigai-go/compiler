@@ -4,12 +4,6 @@ open System
 open Ikigai.Compiler
 open Ikigai.Compiler.AST
 
-type Entity(name, genArgs, range) =
-    member __.Name: string = name
-    member __.GenericArguments: string list = genArgs
-    member __.DeclarationLocation: SourceLocation = range
-    // TODO: Members
-
 type ArgumentType =
     { argType: Type; isOptional: bool }
 
@@ -25,7 +19,7 @@ type Type =
     | Number
     | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type
     | GenericParam of name: string
-    | DeclaredType of Entity * genericArgs: Type list
+    | DeclaredType of Reference * genericArgs: Type list
     | Union of Type list // Typescript-like unions
     | Enum
 
@@ -53,20 +47,6 @@ type Annotation =
         | FunctionType _ -> "function" // TODO
         | GenericParam name -> name
         | DeclaredType(name,_) -> name // TODO: Add genericArgs?
-    member this.Type: Type =
-        match this with
-        | Any -> Type.Any
-        | Void -> Type.Void
-        | Null -> Type.Null
-        | Boolean -> Type.Boolean
-        | String -> Type.String
-        | Number -> Type.Number
-        | FunctionType(args, hasSpread, ret) ->
-            let args = args |> List.map (fun a -> { argType = a.annotation.Type
-                                                    isOptional = a.isOptional })
-            Type.FunctionType(args, hasSpread, ret.Type)
-        | GenericParam name -> Type.GenericParam name
-        | DeclaredType _ -> failwith "TODO: Search for type in scope"
 
 type LiteralKind =
     | NullLiteral
@@ -93,7 +73,7 @@ module Untyped =
         { declarations: Declaration list }
 
     type Declaration =
-        | TypeDeclaration of TypeDeclaration
+        | TypeDeclaration of isExport: bool * TypeDeclaration
         | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Annotation option * body: Expr
 
     type Signature =
@@ -201,7 +181,7 @@ type OperationKind =
 
 type ReferenceKind =
     | ValueRef of valType: Type * isMutable: bool * isCompilerGenerated: bool
-    | TypeRef of members: Signature list
+    | SkillRef of generic: string * members: Signature list
 
 type Reference =
     { name: string
@@ -211,12 +191,12 @@ type Reference =
     member this.IsMutable =
         match this.kind with
         | ValueRef(_,isMutable,_) -> isMutable
-        | TypeRef _ -> false
+        | _ -> false
     member this.Type =
         match this.kind with
         | ValueRef(t,_,_) -> t
         // TODO: How to type type references when used as expressions?
-        | TypeRef _ -> Any
+        | _ -> Any
 
 type SignatureArgument =
     { name: string

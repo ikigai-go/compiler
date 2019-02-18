@@ -60,7 +60,7 @@ const map<T,A,B> = (s: Mappable<T>, x: T<A>, f: A=>B) => {
 
 When calling such a function, you don't need to pass the skills by yourself, the compiler will pass the appropriate training if declared (or imported) in the current scope.
 
-```typescript
+```js
 const test = () => {
     const object1: Wrapper1 = { value: 5 };
     const object2: Wrapper2 = { value1: "a", value2: "b" }
