@@ -10,7 +10,7 @@ train Pretty<string> {
     prettify(x: string) => "STRING: " + x
 }
 
-const f = (s: Pretty<T>, x: T) => "Prettified is " + x
+const f = (s: Pretty<T>, x: T) => "Prettified is " + s.prettify(x)
 
-const foo = f(5)
+const foo = f(5) // The skill argument is explicitly injected by the compiler
 const bar = f("zas")
