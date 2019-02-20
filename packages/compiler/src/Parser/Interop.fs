@@ -1,10 +1,14 @@
 ﻿module Ikigai.Compiler.Parser
 
+open Fable.Core.JsInterop
 open Ikigai.Compiler.AST
 open Ikigai.Compiler.AST.Ikigai
 
+let parseToCst(txt: string): obj = import "parse" "./parser"
+let toAst(cst: obj): Untyped.FileAst = import "toAst" "./visitor"
+
 let parse(txt: string): Untyped.FileAst =
-    Fable.Core.JsInterop.importMember "./parser"
+    parseToCst txt |> toAst
 
 // TODO: SourceLocation
 let makeLiteral(name: string, value: obj) =
@@ -18,12 +22,13 @@ let makeLiteral(name: string, value: obj) =
         | name -> failwithf "Unknown literal: %s" name
     Untyped.Literal(kind, SourceLocation.Empty)
 
-let makeBinaryOperation(op: string, expr1: Untyped.Expr, expr2: Untyped.Expr) =
+let makeBinaryOperation(expr1: Untyped.Expr, op: string, expr2: Untyped.Expr) =
     let kind = Untyped.BinaryOperation(BinaryOperator.Parse op, expr1, expr2)
     Untyped.Operation(kind, SourceLocation.Empty)
 
-let makeValueDeclaration(isMutable: bool, ident: string, body: obj) =
+let makeValueDeclaration(mutabilityModifier: string, ident: string, body: obj) =
+    let isMutable = mutabilityModifier = "mutable"
     Untyped.ValueDeclaration(false, isMutable, ident, SourceLocation.Empty, None, unbox body)
 
-let makeUntypedAst(decls: Untyped.Declaration[]): Untyped.FileAst =
+let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }

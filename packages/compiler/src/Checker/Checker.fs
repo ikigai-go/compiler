@@ -243,7 +243,7 @@ let check file (ast: Untyped.FileAst): FileAst =
     let decls = ast.declarations |> List.choose (function
             // TODO: Add skill declarations to typed tree too?
             | Untyped.SkillDeclaration _ -> None
-            | Untyped.TrainDeclaration(_isExport, skill, trained, range, members) ->
+            | Untyped.TrainDeclaration(isExport, skill, trained, range, members) ->
                 let trained = getTypeFromAnnotation scope.Find trained
                 let members = members |> List.map (function
                     | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
@@ -253,7 +253,7 @@ let check file (ast: Untyped.FileAst): FileAst =
                             | None -> Primitive Any // TODO: Infer from expression
                         let args, body = checkFunction com scope args retType body
                         Method(name, args, hasSpread, retType, body))
-                TrainDeclaration(scope.Find skill, trained, members) |> Some
+                TrainDeclaration(isExport, scope.Find skill, trained, members) |> Some
             | Untyped.ValueDeclaration(_isExport, _isMutable, name, range, annotation, body) ->
                 let ref =
                     match Map.tryFind name scope.references with
