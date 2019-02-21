@@ -1,84 +1,150 @@
-import { Parser } from "chevrotain"
-import * as L from "./lexer"
-
-/*
-Program
-   : (ValueDeclaration)*
-
-ValueDeclaration
-   : (ExportModifier)? MutabilityModifier Identifier Assignment Expression NewLine
-
-Expression
-   : BinaryOperation | Literal
-
-Literal
-   : Number | String
-
-BinaryOperation
-   : Literal BinaryOperator Literal
-*/
+import { Lexer, Parser } from "chevrotain"
+import Tok from "./tokens"
+import * as I from "./Interop.fs"
 
 class IkigaiParser extends Parser {
     constructor() {
-        super(L.allTokens)
-
+        // we have to explicitly disable the CST building for embedded actions to work.
+        super(Tok, { outputCst: false, maxLookahead: 10 })
         const $ = this
 
         $.RULE("Program", () => {
+            let decls = [];
             $.MANY(() => {
-                $.SUBRULE($.ValueDeclaration)
+                decls.push($.SUBRULE($.ValueDeclaration))
             })
+            return I.makeProgram(decls)
         })
+
+// DECLARATIONS ----------------------------------
 
         $.RULE("ValueDeclaration", () => {
             $.OPTION(() => {
-                $.CONSUME(L.ExportModifier)
+                $.CONSUME(Tok.ExportModifier)
             })
-            $.CONSUME(L.MutabilityModifier)
-            $.CONSUME(L.Identifier)
-            $.CONSUME(L.Assignment)
-            $.SUBRULE($.Expression)
-            $.CONSUME(L.NewLine)
+            const mut = $.CONSUME(Tok.MutabilityModifier).image
+            const id =  $.CONSUME(Tok.Identifier).image
+                        $.CONSUME(Tok.Assignment)
+            const exp = $.SUBRULE($.Expression)
+                        $.CONSUME(Tok.Semicolon)
+            return I.makeValueDeclaration(mut, id, exp)
         })
+
+// EXPRESSION GROUPS ----------------------------------
 
         $.RULE("Expression", () => {
+            let expr;
             $.OR([
-                // ATTENTION: Order is important, because BinaryOperation
-                // can be prefixed by Literal
-                { ALT: () => $.SUBRULE($.BinaryOperation) },
-                { ALT: () => $.SUBRULE($.Literal) },
+                // ATTENTION: Order is important, because BinaryExpression
+                // can be prefixed by Identifier, Literal...
+                { ALT: () => expr = $.SUBRULE($.BinaryExpression) },
             ])
+            return expr;
         })
+
+        $.RULE("IdentExpression", () => {
+            const id = $.CONSUME(Tok.Identifier)
+            return I.makeIdent(id)
+        })
+
+        $.RULE("BinaryAtomicExpression", () => {
+            let expr;
+            $.OR([
+                // { ALT: () => expr = $.SUBRULE($.UnaryExpression) },
+                { ALT: () => expr = $.SUBRULE($.LiteralExpression) },
+                { ALT: () => expr = $.SUBRULE($.IdentExpression) },
+            ])
+            return expr;
+        })
+
+        // $.RULE("UnaryAtomicExpression", () => {
+        //     let expr;
+        //     $.OR([
+        //         { ALT: () => expr = $.SUBRULE($.LiteralExpression) },
+        //         { ALT: () => expr = $.SUBRULE($.IdentExpression) },
+        //     ])
+        //     return expr;
+        // })
+
+// OPERATIONS --------------------------------------
+
+      // Addition has lowest precedence thus it is first in the rule chain
+      // The precedence of binary expressions is determined by how far down int the Parse Tree appear
+        $.RULE("BinaryExpression", () => {
+            let items = [];
+            items.push($.SUBRULE($.ProductExpression))
+            $.MANY(() => {
+                items.push($.CONSUME(Tok.AdditionOperator).image)
+                items.push($.SUBRULE2($.ProductExpression))
+            })
+            return associateBinaryRight(items)
+        })
+
+        $.RULE("ProductExpression", () => {
+            let items = [];
+            items.push($.SUBRULE($.ExponentialExpression))
+            $.MANY(() => {
+                items.push($.CONSUME(Tok.ProductOperator).image)
+                items.push($.SUBRULE2($.ExponentialExpression))
+            })
+            return associateBinaryRight(items)
+        })
+
+        $.RULE("ExponentialExpression", () => {
+            let items = [];
+            items.push($.SUBRULE($.BinaryAtomicExpression))
+            $.MANY(() => {
+                items.push($.CONSUME(Tok.ExponentialOperator).image)
+                items.push($.SUBRULE2($.BinaryAtomicExpression))
+            })
+            return associateBinaryRight(items)
+        })
+
+        // $.RULE("UnaryExpression", () => {
+        //     $.CONSUME(Tok.UnaryOperator)
+        //     $.SUBRULE($.UnaryAtomicExpression)
+        // })
+
+// LITERALS --------------------------------------
 
         // TODO: Booleans, null...
-        $.RULE("Literal", () => {
+        $.RULE("LiteralExpression", () => {
+            let tup;
             $.OR([
-                { ALT: () => $.CONSUME(L.Number) },
-                { ALT: () => $.CONSUME(L.String) }
+                { ALT: () => tup = ["Number", $.CONSUME(Tok.Number).image] },
+                { ALT: () => tup = ["String", $.CONSUME(Tok.String).image] }
             ])
-        })
-
-        // TODO: Using Literal to avoid left recursion, enable multiple operations
-        $.RULE("BinaryOperation", () => {
-            $.SUBRULE($.Literal, { LABEL: "left" })
-            $.CONSUME(L.BinaryOperator)
-            $.SUBRULE2($.Literal, { LABEL: "right" })
+            return I.makeLiteral(tup[0], tup[1]);
         })
 
         this.performSelfAnalysis()
     }
 }
 
-export const parser = new IkigaiParser()
+// Items must be in the format: [expr, op, expr, op, expr...]
+function associateBinaryRight(items) {
+    // TODO: Throw error if length is 0;
+    if (items.length === 1) {
+        return items[0];
+    } else {
+        let lastExpr = items[items.length - 1];
+        for (let i = items.length - 2; i > 0; i -= 2) {
+            lastExpr = I.makeBinaryOperation(items[i-1], items[i], lastExpr);
+        }
+        return lastExpr;
+    }
+}
+
+const parser = new IkigaiParser()
+const lexer = new Lexer(Object.keys(Tok).map(k => Tok[k]));
 
 export function parse(text) {
-    const lexingResult = L.lexer.tokenize(text)
+    const lexingResult = lexer.tokenize(text)
     // "input" is a setter which will reset the parser's state.
     parser.input = lexingResult.tokens
-    const cst = parser.Program()
-
-    if (parser.errors.length > 0) {
-        throw new Error("sad sad panda, Parsing errors detected")
+    const ast = parser.Program()
+    return {
+        ast,
+        errors: parser.errors
     }
-    return cst
 }

@@ -21,8 +21,8 @@ let transform (platform: IPlatform) (filepath: string): JS.Promise<string> =
     |> Promise.map (fun txt ->
         assert false
         let babelAst =
-            Parser.parse txt
-            |> Checker.check filepath
+            let res = Parser.parse txt
+            Checker.check filepath res.ast
             |> Emitter.transform filepath
         transformFromAstSync(babelAst, null)?code)
 
