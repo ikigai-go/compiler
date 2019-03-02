@@ -1,6 +1,7 @@
 import { Lexer, Parser } from "chevrotain"
 import Tok from "./tokens"
 import * as I from "./Interop.fs"
+import { R_OK } from "constants";
 
 class IkigaiParser extends Parser {
     constructor() {
@@ -16,61 +17,33 @@ class IkigaiParser extends Parser {
             return I.makeProgram(decls)
         })
 
-// DECLARATIONS ----------------------------------
+        // DECLARATIONS ----------------------------------
 
         $.RULE("ValueDeclaration", () => {
             $.OPTION(() => {
                 $.CONSUME(Tok.ExportModifier)
             })
             const mut = $.CONSUME(Tok.MutabilityModifier).image
-            const id =  $.CONSUME(Tok.Identifier).image
-                        $.CONSUME(Tok.Assignment)
+            const id = $.CONSUME(Tok.Identifier).image
+            $.CONSUME(Tok.Assignment)
             const exp = $.SUBRULE($.Expression)
-                        $.CONSUME(Tok.Semicolon)
+            $.CONSUME(Tok.Semicolon)
             return I.makeValueDeclaration(mut, id, exp)
         })
 
-// EXPRESSION GROUPS ----------------------------------
+        // EXPRESSION GROUPS ----------------------------------
 
         $.RULE("Expression", () => {
             let expr;
             $.OR([
-                // ATTENTION: Order is important, because BinaryExpression
-                // can be prefixed by Identifier, Literal...
-                { ALT: () => expr = $.SUBRULE($.BinaryExpression) },
+                { ALT: () => expr = $.SUBRULE($.AdditionExpression) },
             ])
             return expr;
         })
 
-        $.RULE("IdentExpression", () => {
-            const id = $.CONSUME(Tok.Identifier)
-            return I.makeIdent(id)
-        })
-
-        $.RULE("BinaryAtomicExpression", () => {
-            let expr;
-            $.OR([
-                // { ALT: () => expr = $.SUBRULE($.UnaryExpression) },
-                { ALT: () => expr = $.SUBRULE($.LiteralExpression) },
-                { ALT: () => expr = $.SUBRULE($.IdentExpression) },
-            ])
-            return expr;
-        })
-
-        // $.RULE("UnaryAtomicExpression", () => {
-        //     let expr;
-        //     $.OR([
-        //         { ALT: () => expr = $.SUBRULE($.LiteralExpression) },
-        //         { ALT: () => expr = $.SUBRULE($.IdentExpression) },
-        //     ])
-        //     return expr;
-        // })
-
-// OPERATIONS --------------------------------------
-
-      // Addition has lowest precedence thus it is first in the rule chain
-      // The precedence of binary expressions is determined by how far down int the Parse Tree appear
-        $.RULE("BinaryExpression", () => {
+        // Addition has lowest precedence thus it is first in the rule chain
+        // The precedence of binary expressions is determined by how far down int the Parse Tree appear
+        $.RULE("AdditionExpression", () => {
             let items = [];
             items.push($.SUBRULE($.ProductExpression))
             $.MANY(() => {
@@ -92,20 +65,83 @@ class IkigaiParser extends Parser {
 
         $.RULE("ExponentialExpression", () => {
             let items = [];
-            items.push($.SUBRULE($.BinaryAtomicExpression))
+            items.push($.SUBRULE($.UnaryExpression))
             $.MANY(() => {
                 items.push($.CONSUME(Tok.ExponentialOperator).image)
-                items.push($.SUBRULE2($.BinaryAtomicExpression))
+                items.push($.SUBRULE2($.UnaryExpression))
             })
             return associateBinaryRight(items)
         })
 
-        // $.RULE("UnaryExpression", () => {
-        //     $.CONSUME(Tok.UnaryOperator)
-        //     $.SUBRULE($.UnaryAtomicExpression)
-        // })
+        $.RULE("UnaryExpression", () => {
+            let op = null;
+            $.OPTION(() => {
+                op = $.CONSUME(Tok.UnaryOperator);
+            });
+            const expr = $.SUBRULE($.PrimaryExpression)
+            return op ? I.makeUnaryOperation(op, expr) : expr;
+        })
 
-// LITERALS --------------------------------------
+        $.RULE("PrimaryExpression", () => {
+            let expr;
+            $.OR([
+                { ALT: () => expr = $.SUBRULE($.LiteralExpression) },
+                { ALT: () => expr = $.SUBRULE($.IdentExpression) },
+            ])
+            return expr;
+        })
+
+        $.RULE("ParensExpression", () => {
+            $.CONSUME(Tok.LParen)
+            const expr = $.SUBRULE($.Expression)
+            $.CONSUME(Tok.RParen)
+            return expr;
+        })
+
+        $.RULE("LambdaExpression", () => {
+            const args = [];
+            $.CONSUME(Tok.LParen)
+            $.OPTION(() => {
+                args.push($.SUBRULE($.Argument))
+                $.MANY(() => {
+                    $.CONSUME(t.Comma)
+                    args.push($.SUBRULE2($.Argument))
+                })
+            })
+            $.CONSUME(Tok.Arrow)
+            $.OR([
+                { ALT: () => expr = $.SUBRULE($.Block) },
+                { ALT: () => expr = $.SUBRULE($.Expression) },
+            ])
+            return; // TODO
+        })
+
+        $.RULE("Block", () => {
+            // TODO
+        })
+
+        $.RULE("Argument", () => {
+            let annotation;
+            const id = $.CONSUME(Tok.Identifier)
+            $.OPTION(() => {
+                annotation = $.SUBRULE($.Annotation);
+            });
+            // TODO: default value
+            return I.makeArgument(id, annotation)
+        })
+
+        $.RULE("Annotation", () => {
+            $.CONSUME(Tok.Colon)
+            const id = I.makeIdent(id); // TODO: Generic args, ad-hoc signatures
+            return I.makeAnnotation(id);
+        })
+
+        $.RULE("IdentExpression", () => {
+            const id = $.CONSUME(Tok.Identifier)
+            return I.makeIdent(id)
+        })
+
+        // LITERALS --------------------------------------
 
         // TODO: Booleans, null...
         $.RULE("LiteralExpression", () => {
@@ -129,7 +165,7 @@ function associateBinaryRight(items) {
     } else {
         let lastExpr = items[items.length - 1];
         for (let i = items.length - 2; i > 0; i -= 2) {
-            lastExpr = I.makeBinaryOperation(items[i-1], items[i], lastExpr);
+            lastExpr = I.makeBinaryOperation(items[i - 1], items[i], lastExpr);
         }
         return lastExpr;
     }

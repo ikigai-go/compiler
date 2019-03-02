@@ -25,6 +25,14 @@ type Primitive =
         | Boolean -> "boolean"
         | String -> "string"
         | Number -> "number"
+    static member TryParse = function
+        | "any" -> Some Any
+        | "void" -> Some Void
+        | "null" -> Some Null
+        | "boolean" -> Some Boolean
+        | "string" -> Some String
+        | "number" -> Some Number
+        | _ -> None
 
 type Type =
     | Primitive of Primitive

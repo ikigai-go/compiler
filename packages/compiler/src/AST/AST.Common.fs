@@ -30,6 +30,11 @@ type UnaryOperator =
     | UnaryTypeof
     | UnaryVoid
     | UnaryDelete
+    static member Parse = function
+        | "-" -> UnaryMinus
+        | "!" -> UnaryNot
+        // | "+" -> UnaryPlus
+        | op -> failwithf "TODO: Other unary operators %s" op
 
 type UpdateOperator =
     | UpdateMinus

@@ -1,5 +1,6 @@
 ﻿module Ikigai.Compiler.Parser
 
+open System
 open Fable.Core.JsInterop
 open Ikigai.Compiler.AST
 open Ikigai.Compiler.AST.Ikigai
@@ -43,8 +44,13 @@ let makeLiteral(name: string, value: string) =
 let makeIdent(name: string) =
     Untyped.Ident(name, SourceLocation.Empty)
 
+// TODO: Logical operations
 let makeBinaryOperation(expr1: Untyped.Expr, op: string, expr2: Untyped.Expr) =
     let kind = Untyped.BinaryOperation(BinaryOperator.Parse op, expr1, expr2)
+    Untyped.Operation(kind, SourceLocation.Empty)
+
+let makeUnaryOperation(op: string, expr: Untyped.Expr) =
+    let kind = Untyped.UnaryOperation(UnaryOperator.Parse op, expr)
     Untyped.Operation(kind, SourceLocation.Empty)
 
 let makeValueDeclaration(mutabilityModifier: string, ident: string, body: obj) =
@@ -53,3 +59,14 @@ let makeValueDeclaration(mutabilityModifier: string, ident: string, body: obj) =
 
 let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }
+
+let makeArgument(name, annotation, defaultValue): Untyped.Argument =
+    { name = name
+      annotation = annotation
+      defaultValue = defaultValue
+      range = SourceLocation.Empty }
+
+let makeAnnotation(ident): Annotation =
+    match Primitive.TryParse ident with
+    | Some prim -> Annotation.Primitive prim
+    | None -> Annotation.DeclaredType(ident, []) // TODO

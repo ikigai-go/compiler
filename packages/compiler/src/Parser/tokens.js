@@ -1,6 +1,6 @@
 import { createToken, Lexer } from "chevrotain";
 
-const WORDS = ["Identifier"];
+const WORDS = ["Identifier", "Arrow"];
 
 export default processTokens({
     // note we are placing WhiteSpace first as it is very common thus it will speed up the lexer.
@@ -12,10 +12,12 @@ export default processTokens({
         pattern: /\/\/.*?\n/,
         group: Lexer.SKIPPED
     },
-    Semicolon: /;/,
-    Assignment: /=/, // longer_alt: AssignmentOperator
-    LParen: /\(/,
-    RParen: /\)/,
+    Colon: ':',
+    Semicolon: ';',
+    Arrow: '=>',
+    Assignment: '=',
+    LParen: '(',
+    RParen: ')',
     // "keywords" appear before the Identifier
     MutabilityModifier: {
         pattern: /const|mutable/,
