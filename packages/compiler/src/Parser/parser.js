@@ -1,7 +1,6 @@
 import { Lexer, Parser } from "chevrotain"
-import Tok from "./tokens"
-import * as I from "./Interop.fs"
 
+/*
 class IkigaiParser extends Parser {
     constructor() {
         // we have to explicitly disable the CST building for embedded actions to work.
@@ -23,22 +22,22 @@ class IkigaiParser extends Parser {
                 $.CONSUME(Tok.ExportModifier)
             })
             const mut = $.CONSUME(Tok.MutabilityModifier).image
-            const id =  $.CONSUME(Tok.Identifier).image
+            const id =  $.CONSUME(Tok.Identifier)
                         $.CONSUME(Tok.Assignment)
             const exp = $.SUBRULE($.Expression)
                         $.CONSUME(Tok.Semicolon)
-            return I.makeValueDeclaration(mut, id, exp)
+            return I.makeValueDeclaration(mut, id.image, exp)
         })
 
 // EXPRESSION GROUPS ----------------------------------
 
         $.RULE("Expression", () => {
-            let expr;
-            $.OR([
-                // ATTENTION: Order is important, because BinaryExpression
-                // can be prefixed by Identifier, Literal...
-                { ALT: () => expr = $.SUBRULE($.BinaryExpression) },
-            ])
+            let expr =
+                $.OR([
+                    // ATTENTION: Order is important, because BinaryExpression
+                    // can be prefixed by Identifier, Literal...
+                    { ALT: () => $.SUBRULE($.BinaryExpression) },
+                ])
             return expr;
         })
 
@@ -134,9 +133,30 @@ function associateBinaryRight(items) {
         return lastExpr;
     }
 }
+*/
 
-const parser = new IkigaiParser()
-const lexer = new Lexer(Object.keys(Tok).map(k => Tok[k]));
+export function makeLexer(tokens) {
+    return new Lexer(tokens);
+}
+
+export function makeParser(tokens, makeRules) {
+    const ParserClass = class extends Parser {
+        constructor() {
+            // we have to explicitly disable the CST building for embedded actions to work.
+            super(tokens, { outputCst: false })
+            const $ = this
+
+            let rules = makeRules($);
+            for (let ruleName of Object.keys(rules)) {
+                $.RULE(ruleName, rules[ruleName]);
+            }
+
+            this.performSelfAnalysis()
+        }
+    }
+
+    return new ParserClass();
+}
 
 export function parse(text) {
     const lexingResult = lexer.tokenize(text)

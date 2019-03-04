@@ -10,7 +10,9 @@
     <Compile Include="AST/AST.Common.fs" />
     <Compile Include="AST/AST.Ikigai.fs" />
     <Compile Include="AST/AST.Babel.fs" />
-    <Compile Include="Parser/Interop.fs" />
+    <Compile Include="Parser/Chevrotain.fs" />
+    <Compile Include="Parser/Tokens.fs" />
+    <Compile Include="Parser/Parser.fs" />
     <Compile Include="Checker/Checker.fs" />
     <Compile Include="Emitter/Emitter.fs" />
     <Compile Include="Main.fs" />
