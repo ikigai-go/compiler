@@ -7,7 +7,10 @@
     "test": "test"
   },
   "scripts": {
-    "build": "fable-splitter"
+    "build": "fable-splitter",
+    "start-fable": "fable-splitter --watch",
+    "start-typescript": "tsc --project src --watch",
+    "start": "concurrently npm:start-*"
   },
   "author": "Ikigai contributors",
   "license": "MIT",
@@ -17,7 +20,8 @@
     "chokidar-cli": "^1.2.2",
     "concurrently": "^4.1.0",
     "fable-compiler": "^2.2.0-beta-007",
-    "fable-splitter": "^2.1.5"
+    "fable-splitter": "^2.1.5",
+    "typescript": "^3.3.3333"
   },
   "dependencies": {
     "chevrotain": "^4.2.0"

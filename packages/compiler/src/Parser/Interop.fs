@@ -26,18 +26,18 @@ type ParseResult =
     abstract member ast: Untyped.FileAst
     abstract member errors: Error[]
 
-let parse(txt: string): ParseResult = import "parse" "./parser"
+let parse(txt: string): ParseResult = import "parse" "./Parser.js"
 
 // TODO: SourceLocation
-let makeLiteral(name: string, value: string) =
+let makeLiteral(kind: string, value: string) =
     let kind =
-        match name with
-        | "Null" -> NullLiteral
-        | "Void" -> VoidLiteral
-        | "Bool" -> BoolLiteral(value = "true")
-        | "String" -> StringLiteral(value)
-        | "Number" -> NumberLiteral(float value)
-        | name -> failwithf "Unknown literal: %s" name
+        match kind with
+        | "null" -> NullLiteral
+        | "void" -> VoidLiteral
+        | "boolean" -> BoolLiteral(value = "true")
+        | "string" -> StringLiteral(value)
+        | "number" -> NumberLiteral(float value)
+        | kind -> failwithf "Unknown literal: %s" kind
     Untyped.Literal(kind, SourceLocation.Empty)
 
 // TODO: SourceLocation
@@ -53,9 +53,9 @@ let makeUnaryOperation(op: string, expr: Untyped.Expr) =
     let kind = Untyped.UnaryOperation(UnaryOperator.Parse op, expr)
     Untyped.Operation(kind, SourceLocation.Empty)
 
-let makeValueDeclaration(mutabilityModifier: string, ident: string, body: obj) =
+let makeValueDeclaration(mutabilityModifier: string, ident: string, body: Untyped.Expr) =
     let isMutable = mutabilityModifier = "mutable"
-    Untyped.ValueDeclaration(false, isMutable, ident, SourceLocation.Empty, None, unbox body)
+    Untyped.ValueDeclaration(false, isMutable, ident, SourceLocation.Empty, None, body)
 
 let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }
