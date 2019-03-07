@@ -1,1 +1,2 @@
 const a = 1 * (2 + 1) * -5;
+const b = (x, y) => x + y;

@@ -60,6 +60,9 @@ let makeValueDeclaration(mutabilityModifier: string, ident: string, body: Untype
 let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }
 
+let makeLambdaExpression(args: Untyped.Argument[], hasSpread, returnAnnotation, body: Untyped.Expr): Untyped.Expr =
+    Untyped.Function(Array.toList args, hasSpread, returnAnnotation, Untyped.Expr body, SourceLocation.Empty)
+
 let makeArgument(name, annotation, defaultValue): Untyped.Argument =
     { name = name
       annotation = annotation

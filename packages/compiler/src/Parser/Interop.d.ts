@@ -9,10 +9,11 @@ declare module "*Interop.fs" {
     function makeIdent(name: string): Expr;
     function makeBinaryOperation(e1: Expr, op: string, e2: Expr): Expr;
     function makeUnaryOperation(e1: Expr, op: string): Expr;
-    function makeValueDeclaration(mut: string, ident: string, body: Expr): Declaration;
-    function makeProgram(decls: Declaration[]): FileAst;
     function makeArgument(name: string, annotation: Annotation|null, defaultValue: Expr|null): Argument;
     function makeAnnotation(ident: string): Annotation;
+    function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Annotation|null, body: Expr): Expr;
+    function makeValueDeclaration(mut: string, ident: string, body: Expr): Declaration;
+    function makeProgram(decls: Declaration[]): FileAst;
 
     export {
         Annotation,
@@ -24,9 +25,10 @@ declare module "*Interop.fs" {
         makeIdent,
         makeBinaryOperation,
         makeUnaryOperation,
-        makeValueDeclaration,
-        makeProgram,
         makeArgument,
         makeAnnotation,
+        makeLambdaExpression,
+        makeValueDeclaration,
+        makeProgram,
     }
 }

@@ -82,6 +82,7 @@ class IkigaiParser extends Parser {
 
     public PrimaryExpression = this.RULE("PrimaryExpression", () => {
         return this.OR([
+            { ALT: () => this.SUBRULE(this.LambdaExpression) },
             { ALT: () => this.SUBRULE(this.ParensExpression) },
             { ALT: () => this.SUBRULE(this.LiteralExpression) },
             { ALT: () => this.SUBRULE(this.IdentExpression) },
@@ -95,24 +96,24 @@ class IkigaiParser extends Parser {
         return expr;
     })
 
-    // this.RULE("LambdaExpression", () => {
-    //     const args = [];
-    //     this.CONSUME(Tok.LParen)
-    //     this.OPTION(() => {
-    //         args.push(this.SUBRULE(this.Argument))
-    //         this.MANY(() => {
-    //             this.CONSUME(Tok.Comma)
-    //             args.push(this.SUBRULE2(this.Argument))
-    //         })
-    //     })
-    //     this.CONSUME(Tok.RParen)
-    //     this.CONSUME(Tok.Arrow)
-    //     this.OR([
-    //         { ALT: () => expr = this.SUBRULE(this.Block) },
-    //         { ALT: () => expr = this.SUBRULE(this.Expression) },
-    //     ])
-    //     return; // TODO
-    // })
+    public LambdaExpression = this.RULE("LambdaExpression", () => {
+        const args: I.Argument[] = [];
+        this.CONSUME(Tok.LParen)
+        this.OPTION(() => {
+            args.push(this.SUBRULE(this.Argument))
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma)
+                args.push(this.SUBRULE2(this.Argument))
+            })
+        })
+        this.CONSUME(Tok.RParen)
+        this.CONSUME(Tok.Arrow)
+        const body = this.OR([
+            // { ALT: () => this.SUBRULE(this.Block) },
+            { ALT: () => this.SUBRULE(this.Expression) },
+        ])
+        return I.makeLambdaExpression(args, false, null, body);
+    })
 
     // this.RULE("Block", () => {
     //     this.CONSUME(Tok.LBrace)
