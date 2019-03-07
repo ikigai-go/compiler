@@ -113,7 +113,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
         match scope.TryFind name with
         | Some ref -> Ident(ref, Some r)
         | None -> com.AddErrorAndReturnNull(Error.cannotFindIdent name, r)
-    | Untyped.Function(args, hasSpread, returnAnnotation, body, _range) ->
+    | Untyped.Function(args, hasSpread, returnAnnotation, body) ->
         let retType =
             match returnAnnotation with
             | Some a -> getTypeFromAnnotation scope.Find a

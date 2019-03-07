@@ -1,4 +1,4 @@
-import { Lexer, Parser } from "chevrotain"
+import { Lexer, Parser, IToken } from "chevrotain"
 import Tok from "./Tokens"
 import * as I from "./Interop.fs"
 
@@ -24,7 +24,7 @@ class IkigaiParser extends Parser {
             this.CONSUME(Tok.ExportModifier)
         })
         const mut = this.CONSUME(Tok.MutabilityModifier).image
-        const id = this.CONSUME(Tok.Identifier).image
+        const id = this.CONSUME(Tok.Identifier)
         this.CONSUME(Tok.Assignment)
         const exp = this.SUBRULE(this.Expression)
         this.CONSUME(Tok.Semicolon)
@@ -43,30 +43,30 @@ class IkigaiParser extends Parser {
     // Addition has lowest precedence thus it is first in the rule chain
     // The precedence of binary expressions is determined by how far down int the Parse Tree appear
     public AdditionExpression = this.RULE("AdditionExpression", () => {
-        let items: (I.Expr|string)[] = [];
+        let items: (I.Expr|IToken)[] = [];
         items.push(this.SUBRULE(this.ProductExpression))
         this.MANY(() => {
-            items.push(this.CONSUME(Tok.AdditionOperator).image)
+            items.push(this.CONSUME(Tok.AdditionOperator))
             items.push(this.SUBRULE2(this.ProductExpression))
         })
         return associateBinaryRight(items)
     })
 
     public ProductExpression = this.RULE("ProductExpression", () => {
-        let items: (I.Expr|string)[] = [];
+        let items: (I.Expr|IToken)[] = [];
         items.push(this.SUBRULE(this.ExponentialExpression))
         this.MANY(() => {
-            items.push(this.CONSUME(Tok.ProductOperator).image)
+            items.push(this.CONSUME(Tok.ProductOperator))
             items.push(this.SUBRULE2(this.ExponentialExpression))
         })
         return associateBinaryRight(items)
     })
 
     public ExponentialExpression = this.RULE("ExponentialExpression", () => {
-        let items: (I.Expr|string)[] = [];
+        let items: (I.Expr|IToken)[] = [];
         items.push(this.SUBRULE(this.UnaryExpression))
         this.MANY(() => {
-            items.push(this.CONSUME(Tok.ExponentialOperator).image)
+            items.push(this.CONSUME(Tok.ExponentialOperator))
             items.push(this.SUBRULE2(this.UnaryExpression))
         })
         return associateBinaryRight(items)
@@ -74,8 +74,7 @@ class IkigaiParser extends Parser {
 
     public UnaryExpression = this.RULE("UnaryExpression", () => {
         let op = this.OPTION(() =>
-            this.CONSUME(Tok.UnaryOperator).image
-        );
+            this.CONSUME(Tok.UnaryOperator));
         const expr = this.SUBRULE(this.PrimaryExpression)
         return op ? I.makeUnaryOperation(op, expr) : expr;
     })
@@ -123,7 +122,7 @@ class IkigaiParser extends Parser {
     // })
 
     public Argument = this.RULE("Argument", () => {
-        const id = this.CONSUME(Tok.Identifier).image;
+        const id = this.CONSUME(Tok.Identifier);
         // this.OPTION(() => {
         //     annotation = this.SUBRULE(this.Annotation);
         // });
@@ -138,31 +137,29 @@ class IkigaiParser extends Parser {
     // })
 
     public IdentExpression = this.RULE("IdentExpression", () => {
-        const id = this.CONSUME(Tok.Identifier).image;
-        return I.makeIdent(id)
+        return I.makeIdent(this.CONSUME(Tok.Identifier));
     })
 
     // LITERALS --------------------------------------
 
     // TODO: Booleans, null...
     public LiteralExpression = this.RULE("LiteralExpression", () => {
-        let tup = this.OR([
-            { ALT: () => ["number", this.CONSUME(Tok.Number).image] },
-            { ALT: () => ["string", this.CONSUME(Tok.String).image] }
-        ])
-        return I.makeLiteral(tup[0], tup[1]);
+        return this.OR([
+            { ALT: () => I.makeLiteral("number", this.CONSUME(Tok.Number)) },
+            { ALT: () => I.makeLiteral("string", this.CONSUME(Tok.String)) }
+        ]);
     })
 }
 
 // Items must be in the format: [expr, op, expr, op, expr...]
-function associateBinaryRight(items: (I.Expr|string)[]): I.Expr {
+function associateBinaryRight(items: (I.Expr|IToken)[]): I.Expr {
     // TODO: Throw error if length is 0;
     if (items.length === 1) {
         return items[0] as I.Expr;
     } else {
         let lastExpr = items[items.length - 1];
         for (let i = items.length - 2; i > 0; i -= 2) {
-            lastExpr = I.makeBinaryOperation(items[i - 1], items[i] as string, lastExpr);
+            lastExpr = I.makeBinaryOperation(items[i - 1], items[i] as IToken, lastExpr);
         }
         return lastExpr as I.Expr;
     }

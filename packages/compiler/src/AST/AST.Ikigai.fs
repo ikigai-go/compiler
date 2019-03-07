@@ -125,6 +125,10 @@ module Untyped =
     type BlockOrExpr =
         | Block of Block
         | Expr of Expr
+        member this.Range =
+            match this with
+            | Block x -> x.Range
+            | Expr x -> x.Range
 
     type ElseIfOrBlock =
         | ElseIf of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock
@@ -152,7 +156,7 @@ module Untyped =
     type Expr =
         | Literal of LiteralKind * range: SourceLocation
         | Ident of name: string * range: SourceLocation
-        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Annotation option * body: BlockOrExpr * range: SourceLocation
+        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Annotation option * body: BlockOrExpr
 
         | Operation of OperationKind * range: SourceLocation
         | Get of baseExpr: Expr * indexExpr: Expr * range: SourceLocation
@@ -161,9 +165,9 @@ module Untyped =
             match this with
             | Literal(_,r)
             | Ident(_,r)
-            | Function(_,_,_,_,r)
             | Operation(_,r)
             | Get(_,_,r) -> r
+            | Function(_,_,_,body) -> body.Range
 
 // Typed AST
 
