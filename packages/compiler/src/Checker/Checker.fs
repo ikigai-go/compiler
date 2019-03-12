@@ -28,10 +28,12 @@ type Scope =
         match Map.tryFind name this.references with
         | Some ref -> Some ref
         | None -> this.parent |> Option.bind (fun s -> s.TryFind name)
-    member this.Find(name: string) =
-        match this.TryFind name with
+    member this.FindOrNullRef(com: FileCompiler, name: string, ?range) =
+        match this.TryFind(name) with
         | Some ref -> ref
-        | None -> failwithf "Cannot find reference in scope: %s" name
+        | None ->
+            com.AddError(Error.cannotFindRef name, ?range=range)
+            NULL_REF
 
 let makeReference name r isExport kind: Reference =
     { name = name
@@ -39,21 +41,29 @@ let makeReference name r isExport kind: Reference =
       isExport = isExport
       declarationLocation = Some r }
 
+let NULL_REF =
+    ValueRef(Primitive Any, false, true)
+    |> makeReference "null" SourceLocation.Empty false
+
 let addLocalValueRefToScope (scope: Scope) name r typ isMutable =
     let ref = ValueRef(typ, isMutable, false) |> makeReference name r false
     ref, { scope with references = Map.add name ref scope.references }
 
-let rec getTypeFromAnnotation (findRef: string->Reference) (annotation: Annotation) =
+let rec getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Untyped.Type) =
     match annotation with
-    | Annotation.Primitive p -> Primitive p
-    | Annotation.GenericParam name -> GenericParam name
-    | Annotation.FunctionType(args, hasSpread, ret) ->
+    | Untyped.Primitive(p,_) -> Primitive p
+    | Untyped.GenericParam(name,_) -> GenericParam name
+    | Untyped.FunctionType(args, hasSpread, ret, _) ->
         let args = args |> List.map (fun a ->
-            { argType = getTypeFromAnnotation findRef a.annotation
+            { argType = getTypeFromAnnotation com scope a.annotation
               isOptional = a.isOptional })
-        Type.FunctionType(args, hasSpread, getTypeFromAnnotation findRef ret)
-    | Annotation.DeclaredType(name, genArgs) ->
-        DeclaredType(findRef name, genArgs |> List.map GenericParam)
+        Type.FunctionType(args, hasSpread, getTypeFromAnnotation com scope ret)
+    | Untyped.DeclaredType(name, r, genArgs) ->
+        match scope.TryFind(name) with
+        | Some ref -> DeclaredType(ref, genArgs |> List.map (getTypeFromAnnotation com scope))
+        | None ->
+            com.AddError(Error.cannotFindType name, r)
+            Primitive Any
 
 // TODO: If hasSpread check last argument is an array
 let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument list) returnType body =
@@ -61,9 +71,8 @@ let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument lis
         ((scope, []), args) ||> List.fold (fun (scope, acc) arg ->
             let t =
                 match arg.annotation with
-                | Some x -> getTypeFromAnnotation scope.Find x
-                // TODO: Infer type if function is passed as argument (expected type)
-                // or add an error
+                | Some x -> getTypeFromAnnotation com scope x
+                // TODO: Infer type if function is passed as argument (expected type) or add an error
                 | None -> Primitive Any
             let ref, scope = addLocalValueRefToScope scope arg.name arg.range t false
             // Using the accumulated scope here is intentional, in JS optional arguments
@@ -73,7 +82,7 @@ let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument lis
     let body = checkBlockOrExpr com scope returnType body
     List.rev args, body
 
-let injectSkillArgs (scope: Scope) appliedType (argExprs: Expr list) =
+let injectSkillArgs com (scope: Scope) appliedType (argExprs: Expr list) =
     let resolveGeneric argTypesAndExprs generic =
         argTypesAndExprs |> List.pick (fun (argType: ArgumentType, argExpr: Expr) ->
             // TODO: The generic can be nested
@@ -101,8 +110,9 @@ let injectSkillArgs (scope: Scope) appliedType (argExprs: Expr list) =
             let injectedArgs =
                 skillArgs |> List.map (fun (skillName, generic) ->
                     let expectedType = resolveGeneric argTypesAndExprs generic
-                    let ident = Naming.trainName skillName expectedType.Name |> scope.Find
-                    Ident(ident, None))
+                    let name = Naming.trainName skillName expectedType.Name
+                    // TODO: Better error if training is not found
+                    Ident(scope.FindOrNullRef(com, name), None))
             injectedArgs @ argExprs
     | _ -> argExprs
 
@@ -112,11 +122,11 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
     | Untyped.Ident(name, r) ->
         match scope.TryFind name with
         | Some ref -> Ident(ref, Some r)
-        | None -> com.AddErrorAndReturnNull(Error.cannotFindIdent name, r)
+        | None -> com.AddErrorAndReturnNull(Error.cannotFindValue name, r)
     | Untyped.Function(args, hasSpread, returnAnnotation, body) ->
         let retType =
             match returnAnnotation with
-            | Some a -> getTypeFromAnnotation scope.Find a
+            | Some a -> getTypeFromAnnotation com scope a
             | None -> Primitive Any // TODO: Infer from expression or expected type
         let args, body = checkFunction com scope args retType body
         Function(List.rev args, hasSpread, body)
@@ -128,7 +138,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
                 // TODO: Type check arguments ignoring skill ones
                 let args =
                     args |> List.map (checkExpr com scope expected)
-                    |> injectSkillArgs scope baseExpr.Type
+                    |> injectSkillArgs com scope baseExpr.Type
                 let t = Primitive Any // TODO: Check baseExpr
                 t, Call(baseExpr, args, isCons, hasSpread)
             | Untyped.UnaryOperation(op, e) ->
@@ -244,16 +254,17 @@ let check file (ast: Untyped.FileAst): FileAst =
             // TODO: Add skill declarations to typed tree too?
             | Untyped.SkillDeclaration _ -> None
             | Untyped.TrainDeclaration(isExport, skill, trained, range, members) ->
-                let trained = getTypeFromAnnotation scope.Find trained
+                let trained = getTypeFromAnnotation com scope trained
                 let members = members |> List.map (function
                     | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
                         let retType =
                             match returnAnnotation with
-                            | Some a -> getTypeFromAnnotation scope.Find a
+                            | Some a -> getTypeFromAnnotation com scope a
                             | None -> Primitive Any // TODO: Infer from expression
                         let args, body = checkFunction com scope args retType body
                         Method(name, args, hasSpread, retType, body))
-                TrainDeclaration(isExport, scope.Find skill, trained, members) |> Some
+                let skill = scope.FindOrNullRef(com, skill, range)
+                TrainDeclaration(isExport, skill, trained, members) |> Some
             | Untyped.ValueDeclaration(_isExport, _isMutable, name, range, annotation, body) ->
                 let ref =
                     match Map.tryFind name scope.references with
@@ -276,12 +287,12 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
             | Untyped.MethodSignature(name, args, hasSpread, returnType) ->
                 let args = args |> List.map (fun a ->
                     { name = a.name
-                      sigType = getTypeFromAnnotation (findRef declMap scope) a.annotation
+                      sigType = getTypeFromAnnotation com scope a.annotation
                       isOptional = a.isOptional })
-                MethodSignature(name, args, hasSpread, getTypeFromAnnotation (findRef declMap scope) returnType)
+                MethodSignature(name, args, hasSpread, getTypeFromAnnotation com scope returnType)
         match decl with
         | Untyped.TrainDeclaration(isExport, skill, trained, range, _) ->
-            TrainRef(findRef declMap scope skill, getTypeFromAnnotation (findRef declMap scope) trained)
+            TrainRef(findRef declMap scope skill, getTypeFromAnnotation com scope trained)
             |> makeReference (Naming.trainName skill trained.Name) range isExport
         | Untyped.SkillDeclaration(isExport, (name, range), generic, signatures) ->
             let signatures = signatures |> List.map (checkSignature declMap scope)
@@ -291,7 +302,7 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
         | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, _) ->
             let t =
                 match annotation with
-                | Some x -> getTypeFromAnnotation (findRef declMap scope) x
+                | Some x -> getTypeFromAnnotation com scope x
                 | None -> Primitive Any // TODO: Infer type from body
             ValueRef(t, isMutable, false)
             |> makeReference name range isExport

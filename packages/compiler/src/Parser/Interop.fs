@@ -22,7 +22,7 @@ type IToken =
 type Error = interface end
 
 type ParseResult =
-    abstract member ast: Untyped.FileAst
+    abstract member ast: Untyped.FileAst option
     abstract member errors: Error[]
 
 let parse(txt: string): ParseResult = import "parse" "./Parser.js"
@@ -70,7 +70,8 @@ let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
       defaultValue = defaultValue
       range = makeRange ident }
 
-let makeAnnotation(ident): Annotation =
-    match Primitive.TryParse ident with
-    | Some prim -> Annotation.Primitive prim
-    | None -> Annotation.DeclaredType(ident, []) // TODO
+let rec makeType(ident: IToken, genericArgs: Untyped.Type[]): Untyped.Type =
+    let r = makeRange ident
+    match genericArgs, Primitive.TryParse ident.image with
+    | [||], Some prim -> Untyped.Primitive(prim, r)
+    | genArgs, _ -> Untyped.DeclaredType(ident.image, r, Array.toList genArgs)

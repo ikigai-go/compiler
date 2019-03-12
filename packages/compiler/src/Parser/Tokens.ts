@@ -27,6 +27,8 @@ export default {
     RParen: tok("RParen", ')'),
     LBrace: tok("LBrace", '{'),
     RBrace: tok("RBrace", '}'),
+    LAngleBracket: tok("LAngleBracket", '<'),
+    RAngleBracket: tok("RAngleBracket", '>'),
     // "keywords" appear before the Identifier
     MutabilityModifier: tok("MutabilityModifier", {
         pattern: /const|mutable/,

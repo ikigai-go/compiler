@@ -7,9 +7,6 @@ open Ikigai.Compiler.AST
 type ArgumentType =
     { argType: Type; isOptional: bool }
 
-type ArgumentAnnotation =
-    { annotation: Annotation; isOptional: bool }
-
 type Primitive =
     | Any
     | Void // Undefined
@@ -48,21 +45,6 @@ type Type =
         | GenericParam name -> name
         | DeclaredType(ref,_) -> ref.name // Generic args are not included in the reference name
 
-[<RequireQualifiedAccess>]
-type Annotation =
-    | Primitive of Primitive
-    | FunctionType of argTypes: ArgumentAnnotation list * hasSpread: bool * returnType: Annotation
-    | GenericParam of name: string
-    | DeclaredType of name: string * genericArgs: string list
-    // | Union of Type list // Typescript-like unions
-    // | Enum
-    member this.Name: string =
-        match this with
-        | Primitive p -> p.Name
-        | FunctionType _ -> "function" // Not a named type
-        | GenericParam name -> name
-        | DeclaredType(name,_) -> name // Generic args are not included in the reference name
-
 type LiteralKind =
     | NullLiteral
     | VoidLiteral
@@ -83,20 +65,36 @@ type RangedName = string * SourceLocation
 
 [<RequireQualifiedAccess>]
 module Untyped =
+    type ArgumentType =
+        { annotation: Type; isOptional: bool }
+
+    type Type =
+        | Primitive of Primitive * SourceLocation
+        | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type * SourceLocation
+        | GenericParam of name: string * SourceLocation
+        | DeclaredType of name: string * SourceLocation * genericArgs: Type list
+        // | Union of Type list // Typescript-like unions
+        // | Enum
+        member this.Name: string =
+            match this with
+            | Primitive(p,_) -> p.Name
+            | FunctionType _ -> "function" // Not a named type
+            | GenericParam(name,_) -> name
+            | DeclaredType(name,_,_) -> name // Generic args are not included in the reference name
 
     type FileAst =
         { declarations: Declaration list }
 
     type Declaration =
-        | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Annotation option * body: Expr
+        | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Type option * body: Expr
         | SkillDeclaration of isExport: bool * name: RangedName * generic: string * Signature list
-        | TrainDeclaration of isExport: bool * skillName: string * trainedType: Annotation * range: SourceLocation * Member list
+        | TrainDeclaration of isExport: bool * skillName: string * trainedType: Type * range: SourceLocation * Member list
 
     type Signature =
-        | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Annotation
+        | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Type
 
     type Member =
-        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Annotation option * body: BlockOrExpr
+        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type option * body: BlockOrExpr
 
     type OperationKind =
         | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -107,12 +105,12 @@ module Untyped =
 
     type SignatureArgument =
         { name: string
-          annotation: Annotation
+          annotation: Type
           isOptional: bool }
 
     type Argument =
         { name: string
-          annotation: Annotation option
+          annotation: Type option
           defaultValue: Expr option
           range: SourceLocation }
 
@@ -144,7 +142,7 @@ module Untyped =
 
     type Statemement =
         | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
-        | Binding of ident: RangedName * isMutable: bool * annotation: Annotation option * value: Expr * range: SourceLocation
+        | Binding of ident: RangedName * isMutable: bool * annotation: Type option * value: Expr * range: SourceLocation
         | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
         | WhileLoop of guard: Expr * body: Block * range: SourceLocation
         // | ForLoop
@@ -156,7 +154,7 @@ module Untyped =
     type Expr =
         | Literal of LiteralKind * range: SourceLocation
         | Ident of name: string * range: SourceLocation
-        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Annotation option * body: BlockOrExpr
+        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Type option * body: BlockOrExpr
 
         | Operation of OperationKind * range: SourceLocation
         | Get of baseExpr: Expr * indexExpr: Expr * range: SourceLocation

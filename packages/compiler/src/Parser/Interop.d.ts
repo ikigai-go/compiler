@@ -1,7 +1,7 @@
 declare module "*Interop.fs" {
     import { IToken } from "chevrotain";
 
-    interface Annotation {}
+    interface Type {}
     interface Argument {}
     interface Expr {}
     interface Declaration {}
@@ -14,14 +14,14 @@ declare module "*Interop.fs" {
     function makeIdent(tok: IToken): Expr;
     function makeBinaryOperation(e1: Expr, op: IToken, e2: Expr): Expr;
     function makeUnaryOperation(op: IToken, e: Expr): Expr;
-    function makeArgument(ident: IToken, annotation: Annotation|null, defaultValue: Expr|null): Argument;
-    function makeAnnotation(ident: string): Annotation;
-    function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Annotation|null, body: Expr): Expr;
+    function makeArgument(ident: IToken, annotation: Type|null, defaultValue: Expr|null): Argument;
+    function makeType(ident: IToken, genericArgs: Type[]): Type;
+    function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Type|null, body: Expr): Expr;
     function makeValueDeclaration(mut: string, ident: IToken, body: Expr): Declaration;
     function makeProgram(decls: Declaration[]): FileAst;
 
     export {
-        Annotation,
+        Type,
         Argument,
         Expr,
         Declaration,
@@ -32,7 +32,7 @@ declare module "*Interop.fs" {
         makeBinaryOperation,
         makeUnaryOperation,
         makeArgument,
-        makeAnnotation,
+        makeType,
         makeLambdaExpression,
         makeValueDeclaration,
         makeProgram,

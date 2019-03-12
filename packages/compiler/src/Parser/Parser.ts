@@ -123,18 +123,29 @@ class IkigaiParser extends Parser {
 
     public Argument = this.RULE("Argument", () => {
         const id = this.CONSUME(Tok.Identifier);
-        // this.OPTION(() => {
-        //     annotation = this.SUBRULE(this.Annotation);
-        // });
+        const annotation = this.OPTION(() => {
+            this.CONSUME(Tok.Colon)
+            return this.SUBRULE(this.Type)
+        });
         // TODO: default value
-        return I.makeArgument(id, null, null);
+        return I.makeArgument(id, annotation, null);
     })
 
-    // this.RULE("Annotation", () => {
-    //     this.CONSUME(Tok.Colon)
-    //     const id = I.makeIdent(id); // TODO: Generic args, ad-hoc signatures
-    //     return I.makeAnnotation(id);
-    // })
+    public Type = this.RULE("Type", () => {
+        // TODO: ad-hoc signatures
+        const id = this.CONSUME(Tok.Identifier);
+        const genArgs: I.Type[] = []
+        this.OPTION(() => {
+            this.CONSUME(Tok.LAngleBracket);
+            genArgs.push(this.SUBRULE(this.Type));
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma);
+                genArgs.push(this.SUBRULE2(this.Type));
+            })
+            this.CONSUME(Tok.RAngleBracket);
+        });
+        return I.makeType(id, genArgs);
+    })
 
     public IdentExpression = this.RULE("IdentExpression", () => {
         return I.makeIdent(this.CONSUME(Tok.Identifier));

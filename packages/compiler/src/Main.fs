@@ -19,12 +19,16 @@ type NodePlatform() =
 let transform (platform: IPlatform) (filepath: string): JS.Promise<string> =
     platform.ReadFile filepath
     |> Promise.map (fun txt ->
-        assert false
-        let babelAst =
-            let res = Parser.parse txt
-            Checker.check filepath res.ast
-            |> Emitter.transform filepath
-        transformFromAstSync(babelAst, null)?code)
+        let parsed = Parser.parse txt
+        for error in parsed.errors do
+            printfn "[PARSE ERROR] %O" error
+        match parsed.ast with
+        | Some ast ->
+            let babelAst =
+                Checker.check filepath ast
+                |> Emitter.transform filepath
+            transformFromAstSync(babelAst, null)?code
+        | None -> "")
 
 [<EntryPoint>]
 let main argv =

@@ -1,8 +1,12 @@
 [<RequireQualifiedAccess>]
 module Ikigai.Compiler.Error
 
-let cannotFindIdent name =
-    sprintf "Cannot find ident with name %s in scope" name
+let private cannotFind kind name =
+    sprintf "Cannot find %s with name %s in scope" kind name
+
+let cannotFindValue name = cannotFind "value" name
+let cannotFindType name = cannotFind "type" name
+let cannotFindRef name = cannotFind "reference" name
 
 let unexpectedReturningBlock =
     // "The block is not expected to return a value"
