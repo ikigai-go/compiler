@@ -38,6 +38,7 @@ export default {
         pattern: /export/,
         longer_alt: Identifier
     }),
+    Skill: tok("Skill", 'skill'),
     Identifier,
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),

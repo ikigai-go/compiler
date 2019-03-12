@@ -12,17 +12,64 @@ class IkigaiParser extends Parser {
     public Program = this.RULE("Program", () => {
         let decls: I.Declaration[] = [];
         this.MANY(() => {
-            decls.push(this.SUBRULE(this.ValueDeclaration))
+            decls.push(this.SUBRULE(this.Declaration))
         })
         return I.makeProgram(decls)
     })
 
     // DECLARATIONS ----------------------------------
 
-    public ValueDeclaration = this.RULE("ValueDeclaration", () => {
-        this.OPTION(() => {
+    public Declaration = this.RULE("Declaration", () => {
+        const exportToken = this.OPTION(() => {
             this.CONSUME(Tok.ExportModifier)
         })
+        const decl = this.OR([
+            { ALT: () => this.SUBRULE(this.SkillDeclaration) },
+            { ALT: () => this.SUBRULE(this.ValueDeclaration) },
+        ]);
+        return I.makeDeclaration(exportToken != null, decl);
+    })
+
+    public SkillDeclaration = this.RULE("SkillDeclaration", () => {
+        const signatures: I.Signature[] = [];
+        this.CONSUME(Tok.Skill)
+        const name = this.CONSUME(Tok.Identifier);
+        this.CONSUME(Tok.LAngleBracket);
+        // TODO: Stricter rules for generic params?
+        // (e.g. single uppercase letter with optional digit)
+        const genericParam = this.CONSUME2(Tok.Identifier);
+        this.CONSUME(Tok.RAngleBracket);
+        this.CONSUME(Tok.LBrace);
+        signatures.push(this.SUBRULE(this.Signature))
+        this.MANY(() => {
+            this.CONSUME(Tok.Comma)
+            signatures.push(this.SUBRULE2(this.Signature))
+        })
+        this.CONSUME(Tok.RBrace);
+        return I.makeSkillDeclaration(name, genericParam, signatures);
+    })
+
+    // TODO: Other non-method signatures
+    public Signature = this.RULE("Signature", () => {
+        const name = this.CONSUME(Tok.Identifier);
+        const args: I.ArgumentSignature[] = [];
+        this.CONSUME(Tok.LParen)
+        this.OPTION(() => {
+            args.push(this.SUBRULE(this.ArgumentSignature))
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma)
+                args.push(this.SUBRULE2(this.ArgumentSignature))
+            })
+        })
+        this.CONSUME(Tok.RParen)
+        this.CONSUME(Tok.Colon);
+        const returnType = this.SUBRULE(this.Type);
+        this.CONSUME(Tok.Semicolon);
+        // TODO: hasSpread
+        return I.makeMethodSignature(name, args, false, returnType);
+    })
+
+    public ValueDeclaration = this.RULE("ValueDeclaration", () => {
         const mut = this.CONSUME(Tok.MutabilityModifier).image
         const id = this.CONSUME(Tok.Identifier)
         this.CONSUME(Tok.Assignment)
@@ -34,10 +81,9 @@ class IkigaiParser extends Parser {
     // EXPRESSION GROUPS ----------------------------------
 
     public Expression = this.RULE("Expression", () => {
-        let expr = this.OR([
+        return this.OR([
             { ALT: () => this.SUBRULE(this.AdditionExpression) },
         ])
-        return expr;
     })
 
     // Addition has lowest precedence thus it is first in the rule chain
@@ -131,6 +177,14 @@ class IkigaiParser extends Parser {
         return I.makeArgument(id, annotation, null);
     })
 
+    public ArgumentSignature = this.RULE("ArgumentSignature", () => {
+        const id = this.CONSUME(Tok.Identifier);
+        this.CONSUME(Tok.Colon);
+        const annotation = this.SUBRULE(this.Type);
+        // TODO: isOptional
+        return I.makeArgumentSignature(id, false, annotation);
+    })
+
     public Type = this.RULE("Type", () => {
         // TODO: ad-hoc signatures
         const id = this.CONSUME(Tok.Identifier);
@@ -170,7 +224,7 @@ function associateBinaryRight(items: (I.Expr|IToken)[]): I.Expr {
     } else {
         let lastExpr = items[items.length - 1];
         for (let i = items.length - 2; i > 0; i -= 2) {
-            lastExpr = I.makeBinaryOperation(items[i - 1], items[i] as IToken, lastExpr);
+            lastExpr = I.makeBinaryOperation(items[i - 1] as I.Expr, items[i] as IToken, lastExpr as I.Expr);
         }
         return lastExpr as I.Expr;
     }

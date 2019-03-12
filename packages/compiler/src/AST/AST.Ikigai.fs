@@ -85,13 +85,16 @@ module Untyped =
     type FileAst =
         { declarations: Declaration list }
 
+    type DeclarationKind =
+        | ValueDeclaration of isMutable: bool * name: RangedName * annotation: Type option * body: Expr
+        | SkillDeclaration of name: RangedName * generic: string * Signature list
+        | TrainDeclaration of skillName: string * trainedType: Type * range: SourceLocation * Member list
+
     type Declaration =
-        | ValueDeclaration of isExport: bool * isMutable: bool * name: string * range: SourceLocation * annotation: Type option * body: Expr
-        | SkillDeclaration of isExport: bool * name: RangedName * generic: string * Signature list
-        | TrainDeclaration of isExport: bool * skillName: string * trainedType: Type * range: SourceLocation * Member list
+        { kind: DeclarationKind; export: bool }
 
     type Signature =
-        | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Type
+        | MethodSignature of name: RangedName * args: ArgumentSignature list * hasSpread: bool * returnType: Type
 
     type Member =
         | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type option * body: BlockOrExpr
@@ -103,7 +106,7 @@ module Untyped =
         | LogicalOperation of LogicalOperator * left:Expr * right:Expr
         | TernaryOperation of condition: Expr * thenExpr:Expr * elseExpr:Expr
 
-    type SignatureArgument =
+    type ArgumentSignature =
         { name: string
           annotation: Type
           isOptional: bool }
@@ -173,7 +176,7 @@ type FileAst =
     { declarations: Declaration list }
 
 type Signature =
-    | MethodSignature of name: RangedName * args: SignatureArgument list * hasSpread: bool * returnType: Type
+    | MethodSignature of name: RangedName * args: ArgumentSignature list * hasSpread: bool * returnType: Type
 
 type Member =
     | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: BlockOrExpr
@@ -210,7 +213,7 @@ type Reference =
         // TODO: How to type type references when used as expressions?
         | _ -> Primitive Any
 
-type SignatureArgument =
+type ArgumentSignature =
     { name: string
       sigType: Type
       isOptional: bool }

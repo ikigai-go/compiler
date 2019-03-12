@@ -1,13 +1,18 @@
 declare module "*Interop.fs" {
     import { IToken } from "chevrotain";
 
-    interface Type {}
-    interface Argument {}
-    interface Expr {}
-    interface Declaration {}
-    interface FileAst {}
     interface Position { line: number, column: number  }
     interface SourceLocation { start: Position, end: Position }
+
+    // Using strings here only as placeholders for the types
+    type Type = "Type"
+    type Argument = "Argument"
+    type Expr = "Expr"
+    type Declaration = "Declaration"
+    type DeclarationKind = "DeclarationKind"
+    type Signature = "Signature"
+    type ArgumentSignature = "ArgumentSignature"
+    type FileAst = "FileAst"
 
     function makeRange(token: IToken): SourceLocation;
     function makeLiteral(kind: string, tok: IToken): Expr;
@@ -17,7 +22,11 @@ declare module "*Interop.fs" {
     function makeArgument(ident: IToken, annotation: Type|null, defaultValue: Expr|null): Argument;
     function makeType(ident: IToken, genericArgs: Type[]): Type;
     function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Type|null, body: Expr): Expr;
-    function makeValueDeclaration(mut: string, ident: IToken, body: Expr): Declaration;
+    function makeMethodSignature(name: IToken, args: ArgumentSignature[], hasSpread: boolean, returnType: Type): Signature;
+    function makeArgumentSignature(name: IToken, isOptional: boolean, argType: Type): ArgumentSignature;
+    function makeValueDeclaration(mut: string, ident: IToken, body: Expr): DeclarationKind;
+    function makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Signature[]): DeclarationKind;
+    function makeDeclaration(isExport: boolean, decl: DeclarationKind): Declaration;
     function makeProgram(decls: Declaration[]): FileAst;
 
     export {
@@ -25,6 +34,9 @@ declare module "*Interop.fs" {
         Argument,
         Expr,
         Declaration,
+        DeclarationKind,
+        Signature,
+        ArgumentSignature,
         FileAst,
         makeRange,
         makeLiteral,
@@ -34,7 +46,11 @@ declare module "*Interop.fs" {
         makeArgument,
         makeType,
         makeLambdaExpression,
+        makeMethodSignature,
+        makeArgumentSignature,
         makeValueDeclaration,
+        makeSkillDeclaration,
+        makeDeclaration,
         makeProgram,
     }
 }

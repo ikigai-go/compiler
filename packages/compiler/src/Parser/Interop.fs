@@ -56,7 +56,21 @@ let makeUnaryOperation(op: IToken, expr: Untyped.Expr) =
 
 let makeValueDeclaration(mutabilityModifier: string, ident: IToken, body: Untyped.Expr) =
     let isMutable = mutabilityModifier = "mutable"
-    Untyped.ValueDeclaration(false, isMutable, ident.image, makeRange ident, None, body)
+    Untyped.ValueDeclaration(isMutable, (ident.image, makeRange ident), None, body)
+
+let makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Untyped.Signature[]) =
+    Untyped.SkillDeclaration((name.image, makeRange name), genericParam.image, Array.toList signatures)
+
+let makeDeclaration(export: bool, decl: Untyped.DeclarationKind): Untyped.Declaration =
+    { kind = decl; export = export }
+
+let makeMethodSignature(name: IToken, args, hasSpread, returnType): Untyped.Signature =
+    Untyped.MethodSignature((name.image, makeRange name), Array.toList args, hasSpread, returnType)
+
+let makeArgumentSignature(name: IToken, isOptional, argType): Untyped.ArgumentSignature =
+    { name = name.image
+      annotation = argType
+      isOptional = isOptional }
 
 let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }

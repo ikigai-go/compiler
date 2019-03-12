@@ -250,32 +250,33 @@ let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExp
 let check file (ast: Untyped.FileAst): FileAst =
     let com = FileCompiler(file)
     let scope = getGlobalScope com ast
-    let decls = ast.declarations |> List.choose (function
-            // TODO: Add skill declarations to typed tree too?
-            | Untyped.SkillDeclaration _ -> None
-            | Untyped.TrainDeclaration(isExport, skill, trained, range, members) ->
-                let trained = getTypeFromAnnotation com scope trained
-                let members = members |> List.map (function
-                    | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
-                        let retType =
-                            match returnAnnotation with
-                            | Some a -> getTypeFromAnnotation com scope a
-                            | None -> Primitive Any // TODO: Infer from expression
-                        let args, body = checkFunction com scope args retType body
-                        Method(name, args, hasSpread, retType, body))
-                let skill = scope.FindOrNullRef(com, skill, range)
-                TrainDeclaration(isExport, skill, trained, members) |> Some
-            | Untyped.ValueDeclaration(_isExport, _isMutable, name, range, annotation, body) ->
-                let ref =
-                    match Map.tryFind name scope.references with
-                    | Some ref -> ref
-                    | None -> failwithf "Unexpected: reference not found in scope %s (%A)" name range
-                let body = checkExpr com scope (Some ref.Type) body
-                ValueDeclaration(ref, body) |> Some)
+    let decls = ast.declarations |> List.choose (fun decl ->
+        match decl.kind with
+        // TODO: Add skill declarations to typed tree too?
+        | Untyped.SkillDeclaration _ -> None
+        | Untyped.TrainDeclaration(skill, trained, range, members) ->
+            let trained = getTypeFromAnnotation com scope trained
+            let members = members |> List.map (function
+                | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
+                    let retType =
+                        match returnAnnotation with
+                        | Some a -> getTypeFromAnnotation com scope a
+                        | None -> Primitive Any // TODO: Infer from expression
+                    let args, body = checkFunction com scope args retType body
+                    Method(name, args, hasSpread, retType, body))
+            let skill = scope.FindOrNullRef(com, skill, range)
+            TrainDeclaration(decl.export, skill, trained, members) |> Some
+        | Untyped.ValueDeclaration(_isMutable, (name, range), annotation, body) ->
+            let ref =
+                match Map.tryFind name scope.references with
+                | Some ref -> ref
+                | None -> failwithf "Unexpected: reference not found in scope %s (%A)" name range
+            let body = checkExpr com scope (Some ref.Type) body
+            ValueDeclaration(ref, body) |> Some)
     { declarations = decls }
 
 let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
-    let rec resolveReference declMap scope decl: Reference =
+    let rec resolveReference declMap scope (decl: Untyped.Declaration): Reference =
         let findRef declMap (scope: Scope) name =
             match Map.tryFind name scope.references with
             | Some ref -> ref
@@ -290,30 +291,30 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
                       sigType = getTypeFromAnnotation com scope a.annotation
                       isOptional = a.isOptional })
                 MethodSignature(name, args, hasSpread, getTypeFromAnnotation com scope returnType)
-        match decl with
-        | Untyped.TrainDeclaration(isExport, skill, trained, range, _) ->
+        match decl.kind with
+        | Untyped.TrainDeclaration(skill, trained, range, _) ->
             TrainRef(findRef declMap scope skill, getTypeFromAnnotation com scope trained)
-            |> makeReference (Naming.trainName skill trained.Name) range isExport
-        | Untyped.SkillDeclaration(isExport, (name, range), generic, signatures) ->
+            |> makeReference (Naming.trainName skill trained.Name) range decl.export
+        | Untyped.SkillDeclaration((name, range), generic, signatures) ->
             let signatures = signatures |> List.map (checkSignature declMap scope)
             SkillRef(generic, signatures)
-            |> makeReference name range isExport
+            |> makeReference name range decl.export
         // TODO: Exported values cannot be mutable
-        | Untyped.ValueDeclaration(isExport, isMutable, name, range, annotation, _) ->
+        | Untyped.ValueDeclaration(isMutable, (name, range), annotation, _) ->
             let t =
                 match annotation with
                 | Some x -> getTypeFromAnnotation com scope x
                 | None -> Primitive Any // TODO: Infer type from body
             ValueRef(t, isMutable, false)
-            |> makeReference name range isExport
+            |> makeReference name range decl.export
     let declMap =
         (Map.empty, ast.declarations) ||> List.fold (fun acc decl ->
-            match decl with
-            | Untyped.TrainDeclaration(_,skill,trained,_,_) ->
+            match decl.kind with
+            | Untyped.TrainDeclaration(skill,trained,_,_) ->
                 Map.add (Naming.trainName skill trained.Name) decl acc
-            | Untyped.SkillDeclaration(_,(name,_),_,_) ->
+            | Untyped.SkillDeclaration((name,_),_,_) ->
                 Map.add name decl acc
-            | Untyped.ValueDeclaration(_,_,name,_,_,_) ->
+            | Untyped.ValueDeclaration(_,(name,_),_,_) ->
                 Map.add name decl acc)
     // TODO: Scope starts with: global values, imports
     ({ parent = None; references = Map.empty }, ast.declarations)
