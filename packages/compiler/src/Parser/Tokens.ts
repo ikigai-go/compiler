@@ -18,6 +18,10 @@ export default {
         pattern: /\/\/.*?\n/,
         group: Lexer.SKIPPED
     }),
+    MultiLineComment: tok("MultiLineComment", {
+        pattern: /\/\*[^*]*\*+([^\/*][^*]*\*+)*\//,
+        group: Lexer.SKIPPED
+    }),
     Colon: tok("Colon", ':'),
     Semicolon: tok("Semicolon", ';'),
     Comma: tok("Comma", ','),
@@ -47,4 +51,3 @@ export default {
     Number: tok("Number", /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/),
     String: tok("String", /"(?:[^"\\]|.)*"/)
 };
-

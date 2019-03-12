@@ -2,5 +2,22 @@ export skill Pretty<T> {
     prettify(x: T): string;
 }
 
+// Single line comment
+
+/*
+Multi line comment
+Second line is ignore too
+*/
+
+/****
+Multi line comment
+It's also works if we use several *
+***/
+
+/** **
+Multi line comment
+It's also works if we include spaces between *
+** */
+
 const a = 1 * (2 + 1) * -5;
 const b = (x: number, y: Foo<A<R>>) => x + y;
