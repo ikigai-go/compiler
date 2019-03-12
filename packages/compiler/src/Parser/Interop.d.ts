@@ -28,29 +28,4 @@ declare module "*Interop.fs" {
     function makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Signature[]): DeclarationKind;
     function makeDeclaration(isExport: boolean, decl: DeclarationKind): Declaration;
     function makeProgram(decls: Declaration[]): FileAst;
-
-    export {
-        Type,
-        Argument,
-        Expr,
-        Declaration,
-        DeclarationKind,
-        Signature,
-        ArgumentSignature,
-        FileAst,
-        makeRange,
-        makeLiteral,
-        makeIdent,
-        makeBinaryOperation,
-        makeUnaryOperation,
-        makeArgument,
-        makeType,
-        makeLambdaExpression,
-        makeMethodSignature,
-        makeArgumentSignature,
-        makeValueDeclaration,
-        makeSkillDeclaration,
-        makeDeclaration,
-        makeProgram,
-    }
 }
