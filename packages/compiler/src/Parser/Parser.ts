@@ -211,7 +211,8 @@ class IkigaiParser extends Parser {
     public LiteralExpression = this.RULE("LiteralExpression", () => {
         return this.OR([
             { ALT: () => I.makeLiteral("number", this.CONSUME(Tok.Number)) },
-            { ALT: () => I.makeLiteral("string", this.CONSUME(Tok.String)) }
+            { ALT: () => I.makeLiteral("string", this.CONSUME(Tok.String)) },
+            { ALT: () => I.makeLiteral("boolean", this.CONSUME(Tok.Bool)) },
         ]);
     })
 }

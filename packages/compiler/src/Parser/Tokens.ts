@@ -43,6 +43,7 @@ export default {
         longer_alt: Identifier
     }),
     Skill: tok("Skill", 'skill'),
+    Bool: tok("Bool", /true|false/),
     Identifier,
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),
