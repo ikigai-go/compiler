@@ -71,7 +71,7 @@ module Untyped =
     type Type =
         | Primitive of Primitive * SourceLocation
         | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type * SourceLocation
-        | GenericParam of name: string * SourceLocation
+        | GenericParam of name: string * SourceLocation * genericArgs: Type list
         | DeclaredType of name: string * SourceLocation * genericArgs: Type list
         // | Union of Type list // Typescript-like unions
         // | Enum
@@ -79,7 +79,7 @@ module Untyped =
             match this with
             | Primitive(p,_) -> p.Name
             | FunctionType _ -> "function" // Not a named type
-            | GenericParam(name,_) -> name
+            | GenericParam(name,_,_) -> name
             | DeclaredType(name,_,_) -> name // Generic args are not included in the reference name
 
     type FileAst =
@@ -88,7 +88,7 @@ module Untyped =
     type DeclarationKind =
         | ValueDeclaration of isMutable: bool * name: RangedName * annotation: Type option * body: Expr
         | SkillDeclaration of name: RangedName * generic: string * Signature list
-        | TrainDeclaration of skillName: string * trainedType: Type * range: SourceLocation * Member list
+        | TrainDeclaration of skillName: RangedName * trainedType: Type * Member list
 
     type Declaration =
         { kind: DeclarationKind; export: bool }
@@ -160,14 +160,14 @@ module Untyped =
         | Function of args: Argument list * hasSpread: bool * returnAnnotation: Type option * body: BlockOrExpr
 
         | Operation of OperationKind * range: SourceLocation
-        | Get of baseExpr: Expr * indexExpr: Expr * range: SourceLocation
+        | Get of baseExpr: Expr * indexExpr: Expr
 
         member this.Range =
             match this with
             | Literal(_,r)
             | Ident(_,r)
-            | Operation(_,r)
-            | Get(_,_,r) -> r
+            | Operation(_,r) -> r
+            | Get(e1,e2) -> e1.Range + e2.Range
             | Function(_,_,_,body) -> body.Range
 
 // Typed AST

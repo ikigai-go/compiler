@@ -25,12 +25,15 @@ export default {
     Colon: tok("Colon", ':'),
     Semicolon: tok("Semicolon", ';'),
     Comma: tok("Comma", ','),
+    Dot: tok("Dot", '.'),
     Arrow: tok("Arrow", '=>'),
     Assignment: tok("Assignment", '='),
     LParen: tok("LParen", '('),
     RParen: tok("RParen", ')'),
     LBrace: tok("LBrace", '{'),
     RBrace: tok("RBrace", '}'),
+    LBracket: tok("LBracket", '['),
+    RBracket: tok("RBracket", ']'),
     LAngleBracket: tok("LAngleBracket", '<'),
     RAngleBracket: tok("RAngleBracket", '>'),
     // "keywords" appear before the Identifier
@@ -43,6 +46,8 @@ export default {
         longer_alt: Identifier
     }),
     Skill: tok("Skill", 'skill'),
+    Train: tok("Train", 'train'),
+    NewTok: tok("NewTok", 'new'),
     Bool: tok("Bool", /true|false/),
     Null: tok("Null", /null/),
     Identifier,
@@ -51,5 +56,5 @@ export default {
     ProductOperator: tok("ProductOperator", /[*\/]/),
     ExponentialOperator: tok("ExponentialOperator", /\^/),
     Number: tok("Number", /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/),
-    String: tok("String", /"(?:[^"\\]|.)*"/)
+    String: tok("String", /".*?"/) // TODO: Escaped quotes
 };

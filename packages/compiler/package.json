@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "fable-splitter",
-    "start-fable": "fable-splitter --watch",
+    "start-fable": "fable-splitter --watch --run test/test.iki",
     "start-typescript": "tsc --project src --watch",
     "start": "concurrently npm:start-*"
   },

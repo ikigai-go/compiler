@@ -25,6 +25,7 @@ class IkigaiParser extends Parser {
         })
         const decl = this.OR([
             { ALT: () => this.SUBRULE(this.SkillDeclaration) },
+            { ALT: () => this.SUBRULE(this.TrainDeclaration) },
             { ALT: () => this.SUBRULE(this.ValueDeclaration) },
         ]);
         return I.makeDeclaration(exportToken != null, decl);
@@ -40,9 +41,7 @@ class IkigaiParser extends Parser {
         const genericParam = this.CONSUME2(Tok.Identifier);
         this.CONSUME(Tok.RAngleBracket);
         this.CONSUME(Tok.LBrace);
-        signatures.push(this.SUBRULE(this.Signature))
         this.MANY(() => {
-            this.CONSUME(Tok.Comma)
             signatures.push(this.SUBRULE2(this.Signature))
         })
         this.CONSUME(Tok.RBrace);
@@ -67,6 +66,51 @@ class IkigaiParser extends Parser {
         this.CONSUME(Tok.Semicolon);
         // TODO: hasSpread
         return I.makeMethodSignature(name, args, false, returnType);
+    })
+
+    public TrainDeclaration = this.RULE("TrainDeclaration", () => {
+        debugger;
+        const members: I.Member[] = [];
+        this.CONSUME(Tok.Train)
+        const skillName = this.CONSUME(Tok.Identifier);
+        this.CONSUME(Tok.LAngleBracket);
+        const trainedType = this.SUBRULE(this.Type);
+        this.CONSUME(Tok.RAngleBracket);
+        this.CONSUME(Tok.LBrace);
+        this.MANY(() => {
+            members.push(this.SUBRULE2(this.Member))
+        })
+        this.CONSUME(Tok.RBrace);
+        return I.makeTrainDeclaration(skillName, trainedType, members);
+    })
+
+    // TODO: Other non-method members
+    public Member = this.RULE("Member", () => {
+        const name = this.CONSUME(Tok.Identifier);
+        const args: I.Argument[] = [];
+        this.CONSUME(Tok.LParen)
+        this.OPTION(() => {
+            args.push(this.SUBRULE(this.Argument))
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma)
+                args.push(this.SUBRULE2(this.Argument))
+            })
+        })
+        this.CONSUME(Tok.RParen)
+        const returnType = this.OPTION2(() => {
+            this.CONSUME(Tok.Colon);
+            return this.SUBRULE(this.Type);
+        });
+        const body = this.OR([
+            // { ALT: () => this.SUBRULE(this.Block) },
+            { ALT: () => {
+                this.CONSUME(Tok.Arrow)
+                return this.SUBRULE(this.Expression)
+            } }
+        ]);
+        this.CONSUME(Tok.Semicolon);
+        // TODO: hasSpread
+        return I.makeMethod(name, args, false, returnType, body);
     })
 
     public ValueDeclaration = this.RULE("ValueDeclaration", () => {
@@ -128,10 +172,54 @@ class IkigaiParser extends Parser {
     public PrimaryExpression = this.RULE("PrimaryExpression", () => {
         return this.OR([
             { ALT: () => this.SUBRULE(this.LambdaExpression) },
+            { ALT: () => this.SUBRULE(this.CallExpression) },
+        ])
+    })
+
+    public CallExpression = this.RULE("CallExpression", () => {
+        const newTok = this.OPTION(() => this.CONSUME(Tok.NewTok));
+        const baseExpr = this.SUBRULE(this.MemberExpression);
+        const callOp = this.OPTION2(() => {
+            const argExprs: I.Expr[] = [];
+            this.CONSUME(Tok.LParen)
+            this.OPTION3(() => {
+                argExprs.push(this.SUBRULE(this.Expression))
+                this.MANY(() => {
+                    this.CONSUME(Tok.Comma)
+                    argExprs.push(this.SUBRULE2(this.Expression))
+                })
+            })
+            const lastParen = this.CONSUME(Tok.RParen)
+            const range1 = newTok != null ? I.rangeFromToken(newTok) : I.rangeFromExpr(baseExpr);
+            const range = I.addRanges(range1, I.rangeFromToken(lastParen));
+            // TODO: hasSpread
+            return I.makeCallOperation(baseExpr, argExprs, newTok != null, false, range);
+        })
+
+        return callOp || baseExpr;
+    })
+
+    public MemberExpression = this.RULE("MemberExpression", () => {
+        const baseExpr = this.OR([
             { ALT: () => this.SUBRULE(this.ParensExpression) },
             { ALT: () => this.SUBRULE(this.LiteralExpression) },
-            { ALT: () => this.SUBRULE(this.IdentExpression) },
+            { ALT: () => I.makeIdent(this.CONSUME(Tok.Identifier)) },
         ])
+        const memberExpr = this.OPTION(() => this.OR2([
+            { ALT: () => {
+                this.CONSUME(Tok.LBracket)
+                const e = this.SUBRULE(this.Expression)
+                this.CONSUME(Tok.RBracket)
+                return e;
+            } },
+            { ALT: () => {
+                this.CONSUME(Tok.Dot)
+                return I.makeLiteral("string", this.CONSUME2(Tok.Identifier))
+            } },
+        ]));
+        return memberExpr == null
+            ? baseExpr
+            : I.makeGetExpression(baseExpr, memberExpr);
     })
 
     public ParensExpression = this.RULE("ParensExpression", () => {
@@ -199,10 +287,6 @@ class IkigaiParser extends Parser {
             this.CONSUME(Tok.RAngleBracket);
         });
         return I.makeType(id, genArgs);
-    })
-
-    public IdentExpression = this.RULE("IdentExpression", () => {
-        return I.makeIdent(this.CONSUME(Tok.Identifier));
     })
 
     // LITERALS --------------------------------------
