@@ -18,6 +18,10 @@ export default {
         pattern: /\/\/.*?\n/,
         group: Lexer.SKIPPED
     }),
+    MultiLineComment: tok("MultiLineComment", {
+        pattern: /\/\*[^*]*\*+([^\/*][^*]*\*+)*\//,
+        group: Lexer.SKIPPED
+    }),
     Colon: tok("Colon", ':'),
     Semicolon: tok("Semicolon", ';'),
     Comma: tok("Comma", ','),
@@ -44,6 +48,8 @@ export default {
     Skill: tok("Skill", 'skill'),
     Train: tok("Train", 'train'),
     NewTok: tok("NewTok", 'new'),
+    Bool: tok("Bool", /true|false/),
+    Null: tok("Null", /null/),
     Identifier,
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),
@@ -52,4 +58,3 @@ export default {
     Number: tok("Number", /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/),
     String: tok("String", /".*?"/) // TODO: Escaped quotes
 };
-

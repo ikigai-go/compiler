@@ -15,5 +15,25 @@ const f = (s: Pretty<T>, x: T) => "Prettified is " + s.prettify(x);
 const foo = f(5); // The skill argument is implicitly injected by the compiler
 const bar = f("zas");
 
-const a = 2 * (2 + 1) * -5;
+// Single line comment
+
+/*
+Multi line comment
+Second line is ignore too
+*/
+
+/****
+Multi line comment
+It's also works if we use several *
+***/
+
+/** **
+Multi line comment
+It's also works if we include spaces between *
+** */
+
+const a = 1 * (2 + 1) * -5;
 const b = (x: number, y: Foo<A<R>>) => x + y;
+const c = true;
+const d = false;
+const e = null;
