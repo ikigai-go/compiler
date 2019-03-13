@@ -23,3 +23,4 @@ const a = 1 * (2 + 1) * -5;
 const b = (x: number, y: Foo<A<R>>) => x + y;
 const c = true;
 const d = false;
+const e = null;

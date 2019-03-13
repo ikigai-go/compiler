@@ -213,6 +213,7 @@ class IkigaiParser extends Parser {
             { ALT: () => I.makeLiteral("number", this.CONSUME(Tok.Number)) },
             { ALT: () => I.makeLiteral("string", this.CONSUME(Tok.String)) },
             { ALT: () => I.makeLiteral("boolean", this.CONSUME(Tok.Bool)) },
+            { ALT: () => I.makeLiteral("null", this.CONSUME(Tok.Null)) },
         ]);
     })
 }

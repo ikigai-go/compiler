@@ -44,6 +44,7 @@ export default {
     }),
     Skill: tok("Skill", 'skill'),
     Bool: tok("Bool", /true|false/),
+    Null: tok("Null", /null/),
     Identifier,
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),
