@@ -71,7 +71,7 @@ module Untyped =
     type Type =
         | Primitive of Primitive * SourceLocation
         | FunctionType of argTypes: ArgumentType list * hasSpread: bool * returnType: Type * SourceLocation
-        | GenericParam of name: string * SourceLocation
+        | GenericParam of name: string * SourceLocation * genericArgs: Type list
         | DeclaredType of name: string * SourceLocation * genericArgs: Type list
         // | Union of Type list // Typescript-like unions
         // | Enum
@@ -79,7 +79,7 @@ module Untyped =
             match this with
             | Primitive(p,_) -> p.Name
             | FunctionType _ -> "function" // Not a named type
-            | GenericParam(name,_) -> name
+            | GenericParam(name,_,_) -> name
             | DeclaredType(name,_,_) -> name // Generic args are not included in the reference name
 
     type FileAst =

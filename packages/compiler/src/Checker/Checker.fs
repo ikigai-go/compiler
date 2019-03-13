@@ -49,10 +49,29 @@ let addLocalValueRefToScope (scope: Scope) name r typ isMutable =
     let ref = ValueRef(typ, isMutable, false) |> makeReference name r false
     ref, { scope with references = Map.add name ref scope.references }
 
-let rec getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Untyped.Type) =
+let inferTypeFromExpr com scope = function
+    | Untyped.Expr e ->
+        match e with
+        | Untyped.Literal(kind,_) ->
+            Primitive kind.Type
+        | Untyped.Function(args, hasSpread, returnType, body) ->
+            let argTypes = args |> List.map (fun arg ->
+                let t =
+                    match arg.annotation with
+                    | Some a -> getTypeFromAnnotation com scope a
+                    | None -> Primitive Any
+                { argType = t; isOptional = Option.isSome arg.defaultValue })
+            let returnType =
+                getTypeFromAnnotationOrInferFromExpr com scope returnType body
+            FunctionType(argTypes, hasSpread, returnType)
+    // TODO
+        | _ -> Primitive Any
+    | Untyped.Block _ -> Primitive Any
+
+let getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Untyped.Type) =
     match annotation with
     | Untyped.Primitive(p,_) -> Primitive p
-    | Untyped.GenericParam(name,_) -> GenericParam name
+    | Untyped.GenericParam(name,_,_) -> GenericParam name
     | Untyped.FunctionType(args, hasSpread, ret, _) ->
         let args = args |> List.map (fun a ->
             { argType = getTypeFromAnnotation com scope a.annotation
@@ -64,6 +83,11 @@ let rec getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Un
         | None ->
             com.AddError(Error.cannotFindType name, r)
             Primitive Any
+
+let getTypeFromAnnotationOrInferFromExpr com scope annotation (expr: Untyped.BlockOrExpr) =
+    match annotation with
+    | Some a -> getTypeFromAnnotation com scope a
+    | None -> inferTypeFromExpr com scope expr
 
 // TODO: If hasSpread check last argument is an array
 let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument list) returnType body =
@@ -124,10 +148,8 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
         | Some ref -> Ident(ref, Some r)
         | None -> com.AddErrorAndReturnNull(Error.cannotFindValue name, r)
     | Untyped.Function(args, hasSpread, returnAnnotation, body) ->
-        let retType =
-            match returnAnnotation with
-            | Some a -> getTypeFromAnnotation com scope a
-            | None -> Primitive Any // TODO: Infer from expression or expected type
+        // TODO: Infer also from expected type
+        let retType = getTypeFromAnnotationOrInferFromExpr com scope returnAnnotation body
         let args, body = checkFunction com scope args retType body
         Function(List.rev args, hasSpread, body)
     | Untyped.Operation(kind, range) ->
@@ -203,8 +225,8 @@ let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statem
     | Untyped.Assignment _
     | Untyped.WhileLoop _ -> failwith "TODO"
     | Untyped.Binding((ident, identRange), isMutable, annotation, value, range) ->
-        // TODO: Infer expected type from annotation if present
-        let value = checkExpr com scope None value
+        let expected = annotation |> Option.map (getTypeFromAnnotation com scope)
+        let value = checkExpr com scope expected value
         let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
         scope, Binding(ref, value, range)
     | Untyped.FlowControlStatement control ->
@@ -258,10 +280,7 @@ let check file (ast: Untyped.FileAst): FileAst =
             let trained = getTypeFromAnnotation com scope trained
             let members = members |> List.map (function
                 | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
-                    let retType =
-                        match returnAnnotation with
-                        | Some a -> getTypeFromAnnotation com scope a
-                        | None -> Primitive Any // TODO: Infer from expression
+                    let retType = getTypeFromAnnotationOrInferFromExpr com scope returnAnnotation body
                     let args, body = checkFunction com scope args retType body
                     Method(name, args, hasSpread, retType, body))
             let skill = scope.FindOrNullRef(com, skill, range)
@@ -300,11 +319,8 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
             SkillRef(generic, signatures)
             |> makeReference name range decl.export
         // TODO: Exported values cannot be mutable
-        | Untyped.ValueDeclaration(isMutable, (name, range), annotation, _) ->
-            let t =
-                match annotation with
-                | Some x -> getTypeFromAnnotation com scope x
-                | None -> Primitive Any // TODO: Infer type from body
+        | Untyped.ValueDeclaration(isMutable, (name, range), annotation, body) ->
+            let t = getTypeFromAnnotationOrInferFromExpr com scope annotation (Untyped.Expr body)
             ValueRef(t, isMutable, false)
             |> makeReference name range decl.export
     let declMap =

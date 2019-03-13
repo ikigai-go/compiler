@@ -1,9 +1,12 @@
 ﻿module Ikigai.Compiler.Parser
 
 open System
+open System.Text.RegularExpressions
 open Fable.Core.JsInterop
 open Ikigai.Compiler.AST
 open Ikigai.Compiler.AST.Ikigai
+
+let GENERIC_PATTERN = Regex(@"^[A-Z]\d*$")
 
 type TokenType =
     interface end
@@ -101,8 +104,12 @@ let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
       defaultValue = defaultValue
       range = rangeFromToken ident }
 
-let rec makeType(ident: IToken, genericArgs: Untyped.Type[]): Untyped.Type =
+let rec makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
     let r = rangeFromToken ident
-    match genericArgs, Primitive.TryParse ident.image with
-    | [||], Some prim -> Untyped.Primitive(prim, r)
-    | genArgs, _ -> Untyped.DeclaredType(ident.image, r, Array.toList genArgs)
+    let genArgs = Array.toList genArgs
+    match genArgs, Primitive.TryParse ident.image with
+    | [], Some prim -> Untyped.Primitive(prim, r)
+    | genArgs, _ ->
+        if GENERIC_PATTERN.IsMatch(ident.image) then
+            Untyped.GenericParam(ident.image, r, genArgs)
+        else Untyped.DeclaredType(ident.image, r, genArgs)
