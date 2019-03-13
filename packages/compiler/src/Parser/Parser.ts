@@ -172,10 +172,54 @@ class IkigaiParser extends Parser {
     public PrimaryExpression = this.RULE("PrimaryExpression", () => {
         return this.OR([
             { ALT: () => this.SUBRULE(this.LambdaExpression) },
+            { ALT: () => this.SUBRULE(this.CallExpression) },
+        ])
+    })
+
+    public CallExpression = this.RULE("CallExpression", () => {
+        const newTok = this.OPTION(() => this.CONSUME(Tok.NewTok));
+        const baseExpr = this.SUBRULE(this.MemberExpression);
+        const callOp = this.OPTION2(() => {
+            const argExprs: I.Expr[] = [];
+            this.CONSUME(Tok.LParen)
+            this.OPTION3(() => {
+                argExprs.push(this.SUBRULE(this.Expression))
+                this.MANY(() => {
+                    this.CONSUME(Tok.Comma)
+                    argExprs.push(this.SUBRULE2(this.Expression))
+                })
+            })
+            const lastParen = this.CONSUME(Tok.RParen)
+            const range1 = newTok != null ? I.rangeFromToken(newTok) : I.rangeFromExpr(baseExpr);
+            const range = I.addRanges(range1, I.rangeFromToken(lastParen));
+            // TODO: hasSpread
+            return I.makeCallOperation(baseExpr, argExprs, newTok != null, false, range);
+        })
+
+        return callOp || baseExpr;
+    })
+
+    public MemberExpression = this.RULE("MemberExpression", () => {
+        const baseExpr = this.OR([
             { ALT: () => this.SUBRULE(this.ParensExpression) },
             { ALT: () => this.SUBRULE(this.LiteralExpression) },
-            { ALT: () => this.SUBRULE(this.IdentExpression) },
+            { ALT: () => I.makeIdent(this.CONSUME(Tok.Identifier)) },
         ])
+        const memberExpr = this.OPTION(() => this.OR2([
+            { ALT: () => {
+                this.CONSUME(Tok.LBracket)
+                const e = this.SUBRULE(this.Expression)
+                this.CONSUME(Tok.RBracket)
+                return e;
+            } },
+            { ALT: () => {
+                this.CONSUME(Tok.Dot)
+                return I.makeLiteral("string", this.CONSUME2(Tok.Identifier))
+            } },
+        ]));
+        return memberExpr == null
+            ? baseExpr
+            : I.makeGetExpression(baseExpr, memberExpr);
     })
 
     public ParensExpression = this.RULE("ParensExpression", () => {
@@ -243,10 +287,6 @@ class IkigaiParser extends Parser {
             this.CONSUME(Tok.RAngleBracket);
         });
         return I.makeType(id, genArgs);
-    })
-
-    public IdentExpression = this.RULE("IdentExpression", () => {
-        return I.makeIdent(this.CONSUME(Tok.Identifier));
     })
 
     // LITERALS --------------------------------------

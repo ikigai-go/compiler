@@ -33,7 +33,7 @@ let transform (platform: IPlatform) (filepath: string): unit =
         | None -> "")
     |> Promise.eitherEnd
         (fun code -> printfn "\n%s\n%s" code separator)
-        (fun (er: exn) -> printfn "\n[ERROR] %s\n%s\n%s" er.Message er.StackTrace separator)
+        (fun (er: exn) -> JS.console.error(er))
 
 [<EntryPoint>]
 let main argv =

@@ -27,7 +27,11 @@ type ParseResult =
 
 let parse(txt: string): ParseResult = import "parse" "./Parser.js"
 
-let makeRange (ter: IToken): SourceLocation =
+let addRanges (r1: SourceLocation) r2 =  r1 + r2
+
+let rangeFromExpr (e: Untyped.Expr) = e.Range
+
+let rangeFromToken (ter: IToken): SourceLocation =
     { start = { line = ter.startLine; column = ter.startColumn }
       ``end`` = { line = ter.endLine; column = ter.endColumn } }
 
@@ -37,13 +41,13 @@ let makeLiteral(kind: string, tok: IToken) =
         | "null" -> NullLiteral
         | "void" -> VoidLiteral
         | "boolean" -> BoolLiteral(tok.image = "true")
-        | "string" -> StringLiteral(tok.image)
+        | "string" -> StringLiteral(tok.image.Trim('"'))
         | "number" -> NumberLiteral(float tok.image)
         | kind -> failwithf "Unknown literal: %s" kind
-    Untyped.Literal(kind, makeRange tok)
+    Untyped.Literal(kind, rangeFromToken tok)
 
 let makeIdent(tok: IToken) =
-    Untyped.Ident(tok.image, makeRange tok)
+    Untyped.Ident(tok.image, rangeFromToken tok)
 
 // TODO: Logical operations
 let makeBinaryOperation(expr1: Untyped.Expr, op: IToken, expr2: Untyped.Expr) =
@@ -52,26 +56,33 @@ let makeBinaryOperation(expr1: Untyped.Expr, op: IToken, expr2: Untyped.Expr) =
 
 let makeUnaryOperation(op: IToken, expr: Untyped.Expr) =
     let kind = Untyped.UnaryOperation(UnaryOperator.Parse op.image, expr)
-    Untyped.Operation(kind, makeRange op + expr.Range)
+    Untyped.Operation(kind, rangeFromToken op + expr.Range)
+
+let makeCallOperation(baseExpr: Untyped.Expr, args: Untyped.Expr[], isConstructor, hasSpread, range) =
+    let kind = Untyped.Call(baseExpr, Array.toList args, isConstructor, hasSpread)
+    Untyped.Operation(kind, range)
+
+let makeGetExpression(baseExpr: Untyped.Expr, memberExpr: Untyped.Expr) =
+    Untyped.Get(baseExpr, memberExpr)
 
 let makeValueDeclaration(mutabilityModifier: string, ident: IToken, body: Untyped.Expr) =
     let isMutable = mutabilityModifier = "mutable"
-    Untyped.ValueDeclaration(isMutable, (ident.image, makeRange ident), None, body)
+    Untyped.ValueDeclaration(isMutable, (ident.image, rangeFromToken ident), None, body)
 
 let makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Untyped.Signature[]) =
-    Untyped.SkillDeclaration((name.image, makeRange name), genericParam.image, Array.toList signatures)
+    Untyped.SkillDeclaration((name.image, rangeFromToken name), genericParam.image, Array.toList signatures)
 
 let makeTrainDeclaration(skillName: IToken, trainedType: Untyped.Type, members: Untyped.Member[]) =
-    Untyped.TrainDeclaration((skillName.image, makeRange skillName), trainedType, Array.toList members)
+    Untyped.TrainDeclaration((skillName.image, rangeFromToken skillName), trainedType, Array.toList members)
 
 let makeMethod(name: IToken, args, hasSpread, returnType, body): Untyped.Member =
-    Untyped.Method((name.image, makeRange name), Array.toList args, hasSpread, returnType, Untyped.Expr body)
+    Untyped.Method((name.image, rangeFromToken name), Array.toList args, hasSpread, returnType, Untyped.Expr body)
 
 let makeDeclaration(export: bool, decl: Untyped.DeclarationKind): Untyped.Declaration =
     { kind = decl; export = export }
 
 let makeMethodSignature(name: IToken, args, hasSpread, returnType): Untyped.Signature =
-    Untyped.MethodSignature((name.image, makeRange name), Array.toList args, hasSpread, returnType)
+    Untyped.MethodSignature((name.image, rangeFromToken name), Array.toList args, hasSpread, returnType)
 
 let makeArgumentSignature(name: IToken, isOptional, argType): Untyped.ArgumentSignature =
     { name = name.image
@@ -88,10 +99,10 @@ let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
     { name = ident.image
       annotation = annotation
       defaultValue = defaultValue
-      range = makeRange ident }
+      range = rangeFromToken ident }
 
 let rec makeType(ident: IToken, genericArgs: Untyped.Type[]): Untyped.Type =
-    let r = makeRange ident
+    let r = rangeFromToken ident
     match genericArgs, Primitive.TryParse ident.image with
     | [||], Some prim -> Untyped.Primitive(prim, r)
     | genArgs, _ -> Untyped.DeclaredType(ident.image, r, Array.toList genArgs)

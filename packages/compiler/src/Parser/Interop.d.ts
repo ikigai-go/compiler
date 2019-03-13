@@ -15,11 +15,15 @@ declare module "*Interop.fs" {
     type Member = "Member"
     type FileAst = "FileAst"
 
-    function makeRange(token: IToken): SourceLocation;
+    function addRanges(r1: SourceLocation, r2: SourceLocation): SourceLocation;
+    function rangeFromExpr(e: Expr): SourceLocation;
+    function rangeFromToken(token: IToken): SourceLocation;
     function makeLiteral(kind: string, tok: IToken): Expr;
     function makeIdent(tok: IToken): Expr;
     function makeBinaryOperation(e1: Expr, op: IToken, e2: Expr): Expr;
     function makeUnaryOperation(op: IToken, e: Expr): Expr;
+    function makeCallOperation(baseExpr: Expr, args: Expr[], isConstructor: boolean, hasSpread: boolean, range: SourceLocation);
+    function makeGetExpression(baseExpr: Expr, memberExpr: Expr): Expr;
     function makeArgument(ident: IToken, annotation: Type|null, defaultValue: Expr|null): Argument;
     function makeType(ident: IToken, genericArgs: Type[]): Type;
     function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Type|null, body: Expr): Expr;

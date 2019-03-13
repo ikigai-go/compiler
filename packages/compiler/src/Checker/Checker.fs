@@ -164,12 +164,12 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
                 let elseExpr = checkExpr com scope expected elseExpr
                 thenExpr.Type, TernaryOperation(cond, thenExpr, elseExpr)
         Operation(kind, typ, Some range)
-    | Untyped.Get(baseExpr, indexExpr, range) ->
+    | Untyped.Get(baseExpr, indexExpr) ->
         // TODO: Check type of baseExpr to infer type
         let t = defaultArg expected (Primitive Any)
         let baseExpr = checkExpr com scope expected baseExpr
         let indexExpr = checkExpr com scope expected indexExpr
-        Get(baseExpr, indexExpr, t, Some range)
+        Get(baseExpr, indexExpr, t, Some e.Range)
 
 let checkElseIfOrBlock (com: FileCompiler) (scope: Scope) expected (eseIfOrBlock: Untyped.ElseIfOrBlock): ElseIfOrBlock =
     match eseIfOrBlock with

@@ -160,14 +160,14 @@ module Untyped =
         | Function of args: Argument list * hasSpread: bool * returnAnnotation: Type option * body: BlockOrExpr
 
         | Operation of OperationKind * range: SourceLocation
-        | Get of baseExpr: Expr * indexExpr: Expr * range: SourceLocation
+        | Get of baseExpr: Expr * indexExpr: Expr
 
         member this.Range =
             match this with
             | Literal(_,r)
             | Ident(_,r)
-            | Operation(_,r)
-            | Get(_,_,r) -> r
+            | Operation(_,r) -> r
+            | Get(e1,e2) -> e1.Range + e2.Range
             | Function(_,_,_,body) -> body.Range
 
 // Typed AST
