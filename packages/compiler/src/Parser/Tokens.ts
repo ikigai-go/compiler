@@ -39,12 +39,13 @@ export default {
         longer_alt: Identifier
     }),
     Skill: tok("Skill", 'skill'),
+    Train: tok("Train", 'train'),
     Identifier,
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),
     ProductOperator: tok("ProductOperator", /[*\/]/),
     ExponentialOperator: tok("ExponentialOperator", /\^/),
     Number: tok("Number", /-?(?:[0-9]|[1-9][0-9]+)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?\b/),
-    String: tok("String", /"(?:[^"\\]|.)*"/)
+    String: tok("String", /".*?"/) // TODO: Escaped quotes
 };
 

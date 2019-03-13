@@ -25,6 +25,7 @@ class IkigaiParser extends Parser {
         })
         const decl = this.OR([
             { ALT: () => this.SUBRULE(this.SkillDeclaration) },
+            { ALT: () => this.SUBRULE(this.TrainDeclaration) },
             { ALT: () => this.SUBRULE(this.ValueDeclaration) },
         ]);
         return I.makeDeclaration(exportToken != null, decl);
@@ -40,9 +41,7 @@ class IkigaiParser extends Parser {
         const genericParam = this.CONSUME2(Tok.Identifier);
         this.CONSUME(Tok.RAngleBracket);
         this.CONSUME(Tok.LBrace);
-        signatures.push(this.SUBRULE(this.Signature))
         this.MANY(() => {
-            this.CONSUME(Tok.Comma)
             signatures.push(this.SUBRULE2(this.Signature))
         })
         this.CONSUME(Tok.RBrace);
@@ -67,6 +66,51 @@ class IkigaiParser extends Parser {
         this.CONSUME(Tok.Semicolon);
         // TODO: hasSpread
         return I.makeMethodSignature(name, args, false, returnType);
+    })
+
+    public TrainDeclaration = this.RULE("TrainDeclaration", () => {
+        debugger;
+        const members: I.Member[] = [];
+        this.CONSUME(Tok.Train)
+        const skillName = this.CONSUME(Tok.Identifier);
+        this.CONSUME(Tok.LAngleBracket);
+        const trainedType = this.SUBRULE(this.Type);
+        this.CONSUME(Tok.RAngleBracket);
+        this.CONSUME(Tok.LBrace);
+        this.MANY(() => {
+            members.push(this.SUBRULE2(this.Member))
+        })
+        this.CONSUME(Tok.RBrace);
+        return I.makeTrainDeclaration(skillName, trainedType, members);
+    })
+
+    // TODO: Other non-method members
+    public Member = this.RULE("Member", () => {
+        const name = this.CONSUME(Tok.Identifier);
+        const args: I.Argument[] = [];
+        this.CONSUME(Tok.LParen)
+        this.OPTION(() => {
+            args.push(this.SUBRULE(this.Argument))
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma)
+                args.push(this.SUBRULE2(this.Argument))
+            })
+        })
+        this.CONSUME(Tok.RParen)
+        const returnType = this.OPTION2(() => {
+            this.CONSUME(Tok.Colon);
+            return this.SUBRULE(this.Type);
+        });
+        const body = this.OR([
+            // { ALT: () => this.SUBRULE(this.Block) },
+            { ALT: () => {
+                this.CONSUME(Tok.Arrow)
+                return this.SUBRULE(this.Expression)
+            } }
+        ]);
+        this.CONSUME(Tok.Semicolon);
+        // TODO: hasSpread
+        return I.makeMethod(name, args, false, returnType, body);
     })
 
     public ValueDeclaration = this.RULE("ValueDeclaration", () => {

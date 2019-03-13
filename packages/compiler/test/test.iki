@@ -2,5 +2,18 @@ export skill Pretty<T> {
     prettify(x: T): string;
 }
 
-const a = 1 * (2 + 1) * -5;
+train Pretty<number> {
+    prettify(x: number) => "NUMBER: " + x;
+}
+
+//train Pretty<string> {
+//    prettify(x: string) => "STRING: " + x;
+//}
+//
+//const f = (s: Pretty<T>, x: T) => "Prettified is " + s.prettify(x)
+//
+//const foo = f(5) // The skill argument is implicitly injected by the compiler
+//const bar = f("zas")
+
+const a = 2 * (2 + 1) * -5;
 const b = (x: number, y: Foo<A<R>>) => x + y;

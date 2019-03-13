@@ -88,7 +88,7 @@ module Untyped =
     type DeclarationKind =
         | ValueDeclaration of isMutable: bool * name: RangedName * annotation: Type option * body: Expr
         | SkillDeclaration of name: RangedName * generic: string * Signature list
-        | TrainDeclaration of skillName: string * trainedType: Type * range: SourceLocation * Member list
+        | TrainDeclaration of skillName: RangedName * trainedType: Type * Member list
 
     type Declaration =
         { kind: DeclarationKind; export: bool }

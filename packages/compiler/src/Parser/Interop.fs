@@ -61,6 +61,12 @@ let makeValueDeclaration(mutabilityModifier: string, ident: IToken, body: Untype
 let makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Untyped.Signature[]) =
     Untyped.SkillDeclaration((name.image, makeRange name), genericParam.image, Array.toList signatures)
 
+let makeTrainDeclaration(skillName: IToken, trainedType: Untyped.Type, members: Untyped.Member[]) =
+    Untyped.TrainDeclaration((skillName.image, makeRange skillName), trainedType, Array.toList members)
+
+let makeMethod(name: IToken, args, hasSpread, returnType, body): Untyped.Member =
+    Untyped.Method((name.image, makeRange name), Array.toList args, hasSpread, returnType, Untyped.Expr body)
+
 let makeDeclaration(export: bool, decl: Untyped.DeclarationKind): Untyped.Declaration =
     { kind = decl; export = export }
 

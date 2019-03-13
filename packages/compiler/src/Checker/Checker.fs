@@ -254,7 +254,7 @@ let check file (ast: Untyped.FileAst): FileAst =
         match decl.kind with
         // TODO: Add skill declarations to typed tree too?
         | Untyped.SkillDeclaration _ -> None
-        | Untyped.TrainDeclaration(skill, trained, range, members) ->
+        | Untyped.TrainDeclaration((skill, range), trained, members) ->
             let trained = getTypeFromAnnotation com scope trained
             let members = members |> List.map (function
                 | Untyped.Method(name, args, hasSpread, returnAnnotation, body) ->
@@ -292,7 +292,7 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
                       isOptional = a.isOptional })
                 MethodSignature(name, args, hasSpread, getTypeFromAnnotation com scope returnType)
         match decl.kind with
-        | Untyped.TrainDeclaration(skill, trained, range, _) ->
+        | Untyped.TrainDeclaration((skill, range), trained, _) ->
             TrainRef(findRef declMap scope skill, getTypeFromAnnotation com scope trained)
             |> makeReference (Naming.trainName skill trained.Name) range decl.export
         | Untyped.SkillDeclaration((name, range), generic, signatures) ->
@@ -310,7 +310,7 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
     let declMap =
         (Map.empty, ast.declarations) ||> List.fold (fun acc decl ->
             match decl.kind with
-            | Untyped.TrainDeclaration(skill,trained,_,_) ->
+            | Untyped.TrainDeclaration((skill,_),trained,_) ->
                 Map.add (Naming.trainName skill trained.Name) decl acc
             | Untyped.SkillDeclaration((name,_),_,_) ->
                 Map.add name decl acc

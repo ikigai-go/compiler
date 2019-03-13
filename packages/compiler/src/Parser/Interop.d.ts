@@ -12,6 +12,7 @@ declare module "*Interop.fs" {
     type DeclarationKind = "DeclarationKind"
     type Signature = "Signature"
     type ArgumentSignature = "ArgumentSignature"
+    type Member = "Member"
     type FileAst = "FileAst"
 
     function makeRange(token: IToken): SourceLocation;
@@ -23,9 +24,11 @@ declare module "*Interop.fs" {
     function makeType(ident: IToken, genericArgs: Type[]): Type;
     function makeLambdaExpression(args: Argument[], hasSpread: boolean, returnAnnotation: Type|null, body: Expr): Expr;
     function makeMethodSignature(name: IToken, args: ArgumentSignature[], hasSpread: boolean, returnType: Type): Signature;
+    function makeMethod(name: IToken, args: Argument[], hasSpread: boolean, returnType: Type|null, body: Expr): Member;
     function makeArgumentSignature(name: IToken, isOptional: boolean, argType: Type): ArgumentSignature;
     function makeValueDeclaration(mut: string, ident: IToken, body: Expr): DeclarationKind;
     function makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Signature[]): DeclarationKind;
+    function makeTrainDeclaration(skillName: IToken, trainedType: Type, members: Member[]): DeclarationKind;
     function makeDeclaration(isExport: boolean, decl: DeclarationKind): Declaration;
     function makeProgram(decls: Declaration[]): FileAst;
 }
