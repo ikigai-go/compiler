@@ -20,9 +20,7 @@ class IkigaiParser extends Parser {
     // DECLARATIONS ----------------------------------
 
     public Declaration = this.RULE("Declaration", () => {
-        const exportToken = this.OPTION(() => {
-            this.CONSUME(Tok.ExportModifier)
-        })
+        const exportToken = this.OPTION(() => this.CONSUME(Tok.Export))
         const decl = this.OR([
             { ALT: () => this.SUBRULE(this.SkillDeclaration) },
             { ALT: () => this.SUBRULE(this.TrainDeclaration) },
@@ -114,12 +112,12 @@ class IkigaiParser extends Parser {
     })
 
     public ValueDeclaration = this.RULE("ValueDeclaration", () => {
-        const mut = this.CONSUME(Tok.MutabilityModifier).image
+        const mut = this.CONSUME(Tok.MutabilityModifier)
         const id = this.CONSUME(Tok.Identifier)
         this.CONSUME(Tok.Assignment)
         const exp = this.SUBRULE(this.Expression)
         this.CONSUME(Tok.Semicolon)
-        return I.makeValueDeclaration(mut, id, exp)
+        return I.makeValueDeclaration(mut.image === "mutable", id, exp)
     })
 
     // EXPRESSION GROUPS ----------------------------------
@@ -177,7 +175,7 @@ class IkigaiParser extends Parser {
     })
 
     public CallExpression = this.RULE("CallExpression", () => {
-        const newTok = this.OPTION(() => this.CONSUME(Tok.NewTok));
+        const newTok = this.OPTION(() => this.CONSUME(Tok.New));
         const baseExpr = this.SUBRULE(this.MemberExpression);
         const callOp = this.OPTION2(() => {
             const argExprs: I.Expr[] = [];
@@ -248,12 +246,29 @@ class IkigaiParser extends Parser {
         return I.makeLambdaExpression(args, false, null, body);
     })
 
-    // this.RULE("Block", () => {
-    //     this.CONSUME(Tok.LBrace)
-    //     // TODO: Statement list
-    //     this.CONSUME(Tok.RBrace)
-    //     return statements;
-    // })
+    public Block = this.RULE("Block", () => {
+        const statements: I.Statement[] = [];
+        const lbrace = this.CONSUME(Tok.LBrace)
+        this.MANY(() => {
+            statements.push(this.SUBRULE(this.Statement));
+            this.CONSUME(Tok.Semicolon);
+        })
+        const rbrace = this.CONSUME(Tok.RBrace)
+        // return statements;
+    });
+
+    public Statement = this.RULE("Statement", () => {
+        return this.OR([
+            // TODO: break, debugger, throw
+            { ALT: () => this.SUBRULE(this.Binding) },
+            { ALT: () => this.SUBRULE(this.Assignment) },
+            { ALT: () => this.SUBRULE(this.WhileLoop) },
+            { ALT: () => this.SUBRULE(this.Return) },
+            { ALT: () => this.SUBRULE(this.IfThenElse) },
+            { ALT: () => this.SUBRULE(this.TryCatch) },
+            // { ALT: () => this.SUBRULE(this.Expression) },
+        ])
+    });
 
     public Argument = this.RULE("Argument", () => {
         const id = this.CONSUME(Tok.Identifier);

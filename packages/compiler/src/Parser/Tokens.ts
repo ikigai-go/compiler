@@ -8,6 +8,10 @@ function tok(name: string, value: string | RegExp | object) {
 
 const Identifier = tok("Identifier", /[a-zA-Z_][0-9a-zA-Z_]*/);
 
+function keyword(name: string, pattern: string | RegExp) {
+    return createToken({ name, pattern, longer_alt: Identifier })
+}
+
 export default {
     // note we are placing WhiteSpace first as it is very common thus it will speed up the lexer.
     WhiteSpace: tok("WhiteSpace", {
@@ -22,35 +26,37 @@ export default {
         pattern: /\/\*[^*]*\*+([^\/*][^*]*\*+)*\//,
         group: Lexer.SKIPPED
     }),
-    Colon: tok("Colon", ':'),
-    Semicolon: tok("Semicolon", ';'),
-    Comma: tok("Comma", ','),
-    Dot: tok("Dot", '.'),
-    Arrow: tok("Arrow", '=>'),
-    Assignment: tok("Assignment", '='),
-    LParen: tok("LParen", '('),
-    RParen: tok("RParen", ')'),
-    LBrace: tok("LBrace", '{'),
-    RBrace: tok("RBrace", '}'),
-    LBracket: tok("LBracket", '['),
-    RBracket: tok("RBracket", ']'),
-    LAngleBracket: tok("LAngleBracket", '<'),
-    RAngleBracket: tok("RAngleBracket", '>'),
-    // "keywords" appear before the Identifier
-    MutabilityModifier: tok("MutabilityModifier", {
-        pattern: /const|mutable/,
-        longer_alt: Identifier
-    }),
-    ExportModifier: tok("ExportModifier", {
-        pattern: /export/,
-        longer_alt: Identifier
-    }),
-    Skill: tok("Skill", 'skill'),
-    Train: tok("Train", 'train'),
-    NewTok: tok("NewTok", 'new'),
-    Bool: tok("Bool", /true|false/),
-    Null: tok("Null", /null/),
+    // Symbols
+    Colon: tok("Colon", ":"),
+    Semicolon: tok("Semicolon", ";"),
+    Comma: tok("Comma", ","),
+    Dot: tok("Dot", "."),
+    Arrow: tok("Arrow", "=>"),
+    Assignment: tok("Assignment", "="),
+    LParen: tok("LParen", "("),
+    RParen: tok("RParen", ")"),
+    LBrace: tok("LBrace", "{"),
+    RBrace: tok("RBrace", "}"),
+    LBracket: tok("LBracket", "["),
+    RBracket: tok("RBracket", "]"),
+    LAngleBracket: tok("LAngleBracket", "<"),
+    RAngleBracket: tok("RAngleBracket", ">"),
+    // Keywords
+    MutabilityModifier: keyword("MutabilityModifier", /const|mutable/),
+    Export: keyword("Export", "export"),
+    Skill: keyword("Skill", "skill"),
+    Train: keyword("Train", "train"),
+    New: keyword("New", "new"),
+    If: keyword("If", "if"),
+    Else: keyword("Else", "else"),
+    Try: keyword("Try", "try"),
+    Catch: keyword("Catch", "catch"),
+    Finally: keyword("Finally", "finally"),
+    Bool: keyword("Bool", /true|false/),
+    Null: keyword("Null", "null"),
+    // Identifier must appear after keywords
     Identifier,
+    // Complex patterns
     UnaryOperator: tok("UnaryOperator", /[!\-]/),
     AdditionOperator: tok("AdditionOperator", /[+\-]/),
     ProductOperator: tok("ProductOperator", /[*\/]/),

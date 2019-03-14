@@ -68,8 +68,7 @@ let makeCallOperation(baseExpr: Untyped.Expr, args: Untyped.Expr[], isConstructo
 let makeGetExpression(baseExpr: Untyped.Expr, memberExpr: Untyped.Expr) =
     Untyped.Get(baseExpr, memberExpr)
 
-let makeValueDeclaration(mutabilityModifier: string, ident: IToken, body: Untyped.Expr) =
-    let isMutable = mutabilityModifier = "mutable"
+let makeValueDeclaration(isMutable: bool, ident: IToken, body: Untyped.Expr) =
     Untyped.ValueDeclaration(isMutable, (ident.image, rangeFromToken ident), None, body)
 
 let makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Untyped.Signature[]) =

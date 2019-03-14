@@ -151,7 +151,7 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
         // TODO: Infer also from expected type
         let retType = getTypeFromAnnotationOrInferFromExpr com scope returnAnnotation body
         let args, body = checkFunction com scope args retType body
-        Function(List.rev args, hasSpread, body)
+        Function(args, hasSpread, body)
     | Untyped.Operation(kind, range) ->
         let typ, kind =
             match kind with
@@ -219,50 +219,41 @@ let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyp
         let elseBlock = elseBlock |> Option.map (checkElseIfOrBlock com scope expected)
         IfThenElse(cond, thenBlock, elseBlock)
 
-let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statemement): Scope * Statemement =
-    match statement with
-    | Untyped.CallStatement _
-    | Untyped.Assignment _
-    | Untyped.WhileLoop _ -> failwith "TODO"
-    | Untyped.Binding((ident, identRange), isMutable, annotation, value, range) ->
-        let expected = annotation |> Option.map (getTypeFromAnnotation com scope)
-        let value = checkExpr com scope expected value
-        let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
-        scope, Binding(ref, value, range)
-    | Untyped.FlowControlStatement control ->
-        let control = checkFlowControl com scope (Primitive Void) control
-        scope, FlowControlStatement control
-
 let checkBlock (com: FileCompiler) (scope: Scope) (expected: Type) (block: Untyped.Block): Block =
+    let mkBlock statements returnStatement =
+        { statements = statements; returnStatement = returnStatement }
+
+    let rec checkStatements scope statements acc =
+        match statements with
+        | [] -> mkBlock (List.rev acc) None
+        | Untyped.CallStatement _::_
+        | Untyped.Assignment _::_
+        | Untyped.WhileLoop _::_ -> failwith "TODO"
+        | Untyped.Binding((ident, identRange), isMutable, annotation, value, range)::rest ->
+            // TODO: Check rest is not empty?
+            let expected = annotation |> Option.map (getTypeFromAnnotation com scope)
+            let value = checkExpr com scope expected value
+            let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
+            Binding(ref, value, range)::acc |> checkStatements scope rest
+        | Untyped.FlowControlStatement control::rest ->
+            match rest with
+            | [] ->
+                checkFlowControl com scope expected control
+                |> FlowControlReturn |> Some |> mkBlock (List.rev acc)
+            | _ ->
+                let control = checkFlowControl com scope (Primitive Void) control
+                FlowControlStatement(control)::acc |> checkStatements scope rest
+        | Untyped.Return e::rest ->
+            match rest with
+            | [] ->
+                checkExpr com scope (Some expected) e
+                |> Return |> Some |> mkBlock (List.rev acc)
+            | _ ->
+                com.AddError(Error.earlyReturn, e.Range)
+                checkStatements scope rest acc
+
     let scope = { parent = Some scope; references = Map.empty }
-    let statements, ret =
-        match expected, block.returnStatement with
-        | Primitive Void, Some ret ->
-            match ret with
-            | Untyped.Return e ->
-                com.AddError(Error.unexpectedReturningBlock, e.Range)
-                block.statements, None
-            | Untyped.FlowControlReturn c ->
-                block.statements @ [Untyped.FlowControlStatement c], None
-        | Primitive Void, None ->
-            block.statements, None
-        | _, None  ->
-            com.AddError(Error.unexpectedVoidBlock, block.Range)
-            block.statements, Untyped.Literal(NullLiteral, SourceLocation.Empty) |> Untyped.Return |> Some
-        | _, Some r ->
-            block.statements, Some r
-    let scope, statements =
-        ((scope, []), statements) ||> List.fold (fun (scope, acc) stmnt ->
-            let scope, stmnt = checkStatement com scope stmnt
-            scope, stmnt::acc)
-    let ret =
-        ret |> Option.map (function
-            | Untyped.Return e ->
-                checkExpr com scope (Some expected) e |> Return
-            | Untyped.FlowControlReturn c ->
-                checkFlowControl com scope expected c |> FlowControlReturn)
-    { statements = List.rev statements
-      returnStatement = ret }
+    checkStatements scope block.statements []
 
 let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExpr =
     match boe with

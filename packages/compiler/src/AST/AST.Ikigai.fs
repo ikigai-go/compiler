@@ -119,16 +119,14 @@ module Untyped =
 
     type Block =
         { statements: Statemement list
-          returnStatement: ReturnStatement option }
-        member __.Range: SourceLocation =
-            failwith "TODO: Add statements' ranges"
+          range: SourceLocation }
 
     type BlockOrExpr =
         | Block of Block
         | Expr of Expr
         member this.Range =
             match this with
-            | Block x -> x.Range
+            | Block x -> x.range
             | Expr x -> x.Range
 
     type ElseIfOrBlock =
@@ -139,12 +137,8 @@ module Untyped =
         | TryCatch of body: Block * catch: (string * SourceLocation * Block) option * finalizer: Block option
         | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
 
-    type ReturnStatement =
-        | Return of Expr
-        | FlowControlReturn of FlowControl
-
     type Statemement =
-        | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
+        | ExpressionStatement of Expr
         | Binding of ident: RangedName * isMutable: bool * annotation: Type option * value: Expr * range: SourceLocation
         | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
         | WhileLoop of guard: Expr * body: Block * range: SourceLocation
@@ -153,6 +147,7 @@ module Untyped =
         // | Debugger of range: SourceLocation
         // | Throw of Expr * range: SourceLocation
         | FlowControlStatement of FlowControl
+        | Return of Expr
 
     type Expr =
         | Literal of LiteralKind * range: SourceLocation
