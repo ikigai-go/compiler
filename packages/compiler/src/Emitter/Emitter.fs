@@ -51,13 +51,14 @@ let transformArgIdents hasSpread (args: Argument list) =
         identDeclaration a.reference |> toPattern) |> Seq.toArray
 
 let transformExpr = function
+    | Binding _ -> failwith "TODO"
     | Literal kind ->
         transformLiteral kind
     | Ident(ref, r) ->
         upcast ident r ref
     | Function(args, hasSpread, body) ->
         let args = transformArgIdents hasSpread args
-        upcast ArrowFunctionExpression(args, transformBlockOrExpr body)
+        upcast ArrowFunctionExpression(args, transformExpr body |> Choice2Of2)
     | Operation(kind, _, range) ->
         match kind with
         | Call(baseExpr, args, isCons, hasSpread) ->
@@ -79,61 +80,61 @@ let transformExpr = function
         let indexExpr, computed = memberFromExpr indexExpr
         upcast MemberExpression(baseExpr, indexExpr, computed, ?loc=range)
 
-let transformElseIfOrBlock = function
-    | ElseBlock b -> transformBlock b :> Babel.Statement
-    | ElseIf(guardExpr, thenBlock, elseBlock) ->
-        let thenBlock = transformBlock thenBlock
-        let elseBlock = transformElseIfOrBlock elseBlock
-        upcast IfStatement(transformExpr guardExpr, thenBlock, elseBlock)
+// let transformElseIfOrBlock = function
+//     | ElseBlock b -> transformBlock b :> Babel.Statement
+//     | ElseIf(guardExpr, thenBlock, elseBlock) ->
+//         let thenBlock = transformBlock thenBlock
+//         let elseBlock = transformElseIfOrBlock elseBlock
+//         upcast IfStatement(transformExpr guardExpr, thenBlock, elseBlock)
 
-let transformFlowControl control: Statement =
-    match control with
-    | TryCatch(body, catch, finalizer) ->
-        let handler =
-            catch |> Option.map (fun (ref, body) ->
-                CatchClause (identDeclaration ref |> toPattern, transformBlock body))
-        let finalizer =
-            finalizer |> Option.map transformBlock
-        upcast TryStatement(transformBlock body, ?handler=handler, ?finalizer=finalizer)
-    | IfThenElse(guardExpr, thenBlock, elseBlock) ->
-        let thenBlock = transformBlock thenBlock
-        let elseBlock = elseBlock |> Option.map transformElseIfOrBlock
-        upcast IfStatement(transformExpr guardExpr, thenBlock, ?alternate=elseBlock)
+// let transformFlowControl control: Statement =
+//     match control with
+//     | TryCatch(body, catch, finalizer) ->
+//         let handler =
+//             catch |> Option.map (fun (ref, body) ->
+//                 CatchClause (identDeclaration ref |> toPattern, transformBlock body))
+//         let finalizer =
+//             finalizer |> Option.map transformBlock
+//         upcast TryStatement(transformBlock body, ?handler=handler, ?finalizer=finalizer)
+//     | IfThenElse(guardExpr, thenBlock, elseBlock) ->
+//         let thenBlock = transformBlock thenBlock
+//         let elseBlock = elseBlock |> Option.map transformElseIfOrBlock
+//         upcast IfStatement(transformExpr guardExpr, thenBlock, ?alternate=elseBlock)
 
-let transformStatement statement: Statement =
-    match statement with
-    | CallStatement _
-    | Assignment _
-    | WhileLoop _ -> failwith "TODO"
-    | Binding(ref, value, range) ->
-        transformExpr value |> varDeclaration range ref :> _
-    | FlowControlStatement control ->
-        transformFlowControl control
+// let transformStatement statement: Statement =
+//     match statement with
+//     | CallStatement _
+//     | Assignment _
+//     | WhileLoop _ -> failwith "TODO"
+//     | Binding(ref, value, range) ->
+//         transformExpr value |> varDeclaration range ref :> _
+//     | FlowControlStatement control ->
+//         transformFlowControl control
 
-let transformBlock (block: Block): BlockStatement =
-    [|for statement in block.statements do
-        yield transformStatement statement
-      match block.returnStatement with
-      | None -> ()
-      | Some(Return e) ->
-        yield ReturnStatement(transformExpr e, ?loc=e.Range) :> Statement
-      | Some(FlowControlReturn c) ->
-        yield transformFlowControl c
-    |] |> BlockStatement
+// let transformBlock (block: Block): BlockStatement =
+//     [|for statement in block.statements do
+//         yield transformStatement statement
+//       match block.returnStatement with
+//       | None -> ()
+//       | Some(Return e) ->
+//         yield ReturnStatement(transformExpr e, ?loc=e.Range) :> Statement
+//       | Some(FlowControlReturn c) ->
+//         yield transformFlowControl c
+//     |] |> BlockStatement
 
-let transformBlockOrExpr boe: Choice<BlockStatement, Expression> =
-    match boe with
-    | Block block -> transformBlock block |> Choice1Of2
-    | Expr expr -> transformExpr expr |> Choice2Of2
+// let transformBlockOrExpr boe: Choice<BlockStatement, Expression> =
+//     match boe with
+//     | Block block -> transformBlock block |> Choice1Of2
+//     | Expr expr -> transformExpr expr |> Choice2Of2
 
-let transformBlockOrExprAsBlock boe: BlockStatement =
-    match boe with
-    | Block block -> transformBlock block
-    | Expr expr ->
-        transformExpr expr
-        |> ReturnStatement :> Babel.Statement
-        |> Array.singleton
-        |> BlockStatement
+// let transformBlockOrExprAsBlock boe: BlockStatement =
+//     match boe with
+//     | Block block -> transformBlock block
+//     | Expr expr ->
+//         transformExpr expr
+//         |> ReturnStatement :> Babel.Statement
+//         |> Array.singleton
+//         |> BlockStatement
 
 let declareModuleVar isExport isMutable varName r (value: Expression) =
     let kind = if isMutable then Let else Const
@@ -152,7 +153,7 @@ let transformDeclaration decl: Choice<Babel.Statement, ModuleDeclaration> =
         members |> Seq.map (function
             | Method((name,_), args, hasSpread, _, body) ->
                 let args = transformArgIdents hasSpread args
-                let body = transformBlockOrExprAsBlock body
+                let body = [|transformExpr body |> ReturnStatement :> Statement|] |> BlockStatement
                 let prop, computed = memberFromName name
                 ObjectMethod(ObjectMeth, prop, args, body, computed_=computed) |> Choice2Of3)
         |> Seq.toArray

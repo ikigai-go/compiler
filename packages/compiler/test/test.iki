@@ -1,19 +1,19 @@
-export skill Pretty<T> {
-    prettify(x: T): string;
-}
+export skill Pretty<T>
+    { prettify(x: T): string
+    }
 
-train Pretty<number> {
-    prettify(x: number) => "NUMBER: " + x;
-}
+train Pretty<number>
+    { prettify(x: number) = "NUMBER: " + x
+    }
 
-train Pretty<string> {
-    prettify(x: string) => "STRING: " + x;
-}
+train Pretty<string>
+    { prettify(x: string) = "STRING: " + x
+    }
 
-const f = (s: Pretty<T>, x: T) => "Prettified is " + s.prettify(x);
+let f = (s: Pretty<T>, x: T) => "Prettified is " + s.prettify(x)
 
-const foo = f(5); // The skill argument is implicitly injected by the compiler
-const bar = f("zas");
+let foo = f(5) // The skill argument is implicitly injected by the compile
+let bar = f("zas")
 
 // Single line comment
 
@@ -32,8 +32,13 @@ Multi line comment
 It's also works if we include spaces between *
 ** */
 
-const a = 1 * (2 + 1) * -5;
-const b = (x: number, y: Foo<A<R>>) => x + y;
-const c = true;
-const d = false;
-const e = null;
+let a =
+    1
+    * (2 + 1)
+    * -5
+let b =
+    (x: number, y: Foo<A<R>>) =>
+        x + y
+let c = true
+let d = false
+let e = null

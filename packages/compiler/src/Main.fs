@@ -22,8 +22,10 @@ let transform (platform: IPlatform) (filepath: string): unit =
     platform.ReadFile filepath
     |> Promise.map (fun txt ->
         let parsed = Parser.parse txt
-        for error in parsed.errors do
-            printfn "[PARSE ERROR] %O" error
+        for e in parsed.lexerErrors do
+            printfn "[LEXER ERROR %i,%i] %s" e.line e.column e.message
+        for e in parsed.parserErrors do
+            printfn "[PARSER ERROR %i,%i] %s" e.token.startLine e.token.startColumn e.message
         match parsed.ast with
         | Some ast ->
             let babelAst =

@@ -50,23 +50,20 @@ let addLocalValueRefToScope (scope: Scope) name r typ isMutable =
     ref, { scope with references = Map.add name ref scope.references }
 
 let inferTypeFromExpr com scope = function
-    | Untyped.Expr e ->
-        match e with
-        | Untyped.Literal(kind,_) ->
-            Primitive kind.Type
-        | Untyped.Function(args, hasSpread, returnType, body) ->
-            let argTypes = args |> List.map (fun arg ->
-                let t =
-                    match arg.annotation with
-                    | Some a -> getTypeFromAnnotation com scope a
-                    | None -> Primitive Any
-                { argType = t; isOptional = Option.isSome arg.defaultValue })
-            let returnType =
-                getTypeFromAnnotationOrInferFromExpr com scope returnType body
-            FunctionType(argTypes, hasSpread, returnType)
+    | Untyped.Literal(kind,_) ->
+        Primitive kind.Type
+    | Untyped.Function(args, hasSpread, returnType, body) ->
+        let argTypes = args |> List.map (fun arg ->
+            let t =
+                match arg.annotation with
+                | Some a -> getTypeFromAnnotation com scope a
+                | None -> Primitive Any
+            { argType = t; isOptional = Option.isSome arg.defaultValue })
+        let returnType =
+            getTypeFromAnnotationOrInferFromExpr com scope returnType body
+        FunctionType(argTypes, hasSpread, returnType)
     // TODO
-        | _ -> Primitive Any
-    | Untyped.Block _ -> Primitive Any
+    | _ -> Primitive Any
 
 let getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Untyped.Type) =
     match annotation with
@@ -84,7 +81,7 @@ let getTypeFromAnnotation (com: FileCompiler) (scope: Scope) (annotation: Untype
             com.AddError(Error.cannotFindType name, r)
             Primitive Any
 
-let getTypeFromAnnotationOrInferFromExpr com scope annotation (expr: Untyped.BlockOrExpr) =
+let getTypeFromAnnotationOrInferFromExpr com scope annotation expr =
     match annotation with
     | Some a -> getTypeFromAnnotation com scope a
     | None -> inferTypeFromExpr com scope expr
@@ -103,7 +100,7 @@ let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument lis
             // can refer to previous arguments as default value `add(x, y=x)`
             let defValue = arg.defaultValue |> Option.map (checkExpr com scope (Some t))
             scope, { reference = ref; defaultValue = defValue }::acc)
-    let body = checkBlockOrExpr com scope returnType body
+    let body = checkExpr com scope (Some returnType) body
     List.rev args, body
 
 let injectSkillArgs com (scope: Scope) appliedType (argExprs: Expr list) =
@@ -142,6 +139,7 @@ let injectSkillArgs com (scope: Scope) appliedType (argExprs: Expr list) =
 
 let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
     match e with
+    | Untyped.Binding _ -> failwith "TODO"
     | Untyped.Literal(kind,_) -> Literal kind
     | Untyped.Ident(name, r) ->
         match scope.TryFind name with
@@ -193,81 +191,81 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
         let indexExpr = checkExpr com scope expected indexExpr
         Get(baseExpr, indexExpr, t, Some e.Range)
 
-let checkElseIfOrBlock (com: FileCompiler) (scope: Scope) expected (eseIfOrBlock: Untyped.ElseIfOrBlock): ElseIfOrBlock =
-    match eseIfOrBlock with
-    | Untyped.ElseBlock b -> checkBlock com scope expected b |> ElseBlock
-    | Untyped.ElseIf(cond, thenBlock, elseIfOrBlock) ->
-        let cond = checkExpr com scope (Primitive Boolean |> Some) cond
-        let thenBlock = checkBlock com scope expected thenBlock
-        let elseIfOrBlock = checkElseIfOrBlock com scope expected elseIfOrBlock
-        ElseIf(cond, thenBlock, elseIfOrBlock)
+// let checkElseIfOrBlock (com: FileCompiler) (scope: Scope) expected (eseIfOrBlock: Untyped.ElseIfOrBlock): ElseIfOrBlock =
+//     match eseIfOrBlock with
+//     | Untyped.ElseBlock b -> checkBlock com scope expected b |> ElseBlock
+//     | Untyped.ElseIf(cond, thenBlock, elseIfOrBlock) ->
+//         let cond = checkExpr com scope (Primitive Boolean |> Some) cond
+//         let thenBlock = checkBlock com scope expected thenBlock
+//         let elseIfOrBlock = checkElseIfOrBlock com scope expected elseIfOrBlock
+//         ElseIf(cond, thenBlock, elseIfOrBlock)
 
-let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyped.FlowControl): FlowControl =
-    match control with
-    // TODO: Enforce either catch or finalizer or both
-    | Untyped.TryCatch(body, catch, finalizer) ->
-        let body = checkBlock com scope expected body
-        let catch = catch |> Option.map (fun (name, r, block) ->
-            let ref, scope = addLocalValueRefToScope scope name r (Primitive Any) false
-            ref, checkBlock com scope expected block)
-        let finalizer = finalizer |> Option.map (checkBlock com scope expected)
-        TryCatch(body, catch, finalizer)
-    | Untyped.IfThenElse(cond, thenBlock, elseBlock) ->
-        let cond = checkExpr com scope (Primitive Boolean |> Some) cond
-        let thenBlock = checkBlock com scope expected thenBlock
-        // TODO: If expected is not Void and elseBlock is None, add error
-        let elseBlock = elseBlock |> Option.map (checkElseIfOrBlock com scope expected)
-        IfThenElse(cond, thenBlock, elseBlock)
+// let checkFlowControl (com: FileCompiler) (scope: Scope) expected (control: Untyped.FlowControl): FlowControl =
+//     match control with
+//     // TODO: Enforce either catch or finalizer or both
+//     | Untyped.TryCatch(body, catch, finalizer) ->
+//         let body = checkBlock com scope expected body
+//         let catch = catch |> Option.map (fun (name, r, block) ->
+//             let ref, scope = addLocalValueRefToScope scope name r (Primitive Any) false
+//             ref, checkBlock com scope expected block)
+//         let finalizer = finalizer |> Option.map (checkBlock com scope expected)
+//         TryCatch(body, catch, finalizer)
+//     | Untyped.IfThenElse(cond, thenBlock, elseBlock) ->
+//         let cond = checkExpr com scope (Primitive Boolean |> Some) cond
+//         let thenBlock = checkBlock com scope expected thenBlock
+//         // TODO: If expected is not Void and elseBlock is None, add error
+//         let elseBlock = elseBlock |> Option.map (checkElseIfOrBlock com scope expected)
+//         IfThenElse(cond, thenBlock, elseBlock)
 
-let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statemement): Scope * Statemement =
-    match statement with
-    | Untyped.CallStatement _
-    | Untyped.Assignment _
-    | Untyped.WhileLoop _ -> failwith "TODO"
-    | Untyped.Binding((ident, identRange), isMutable, annotation, value, range) ->
-        let expected = annotation |> Option.map (getTypeFromAnnotation com scope)
-        let value = checkExpr com scope expected value
-        let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
-        scope, Binding(ref, value, range)
-    | Untyped.FlowControlStatement control ->
-        let control = checkFlowControl com scope (Primitive Void) control
-        scope, FlowControlStatement control
+// let checkStatement (com: FileCompiler) (scope: Scope) (statement: Untyped.Statemement): Scope * Statemement =
+//     match statement with
+//     | Untyped.CallStatement _
+//     | Untyped.Assignment _
+//     | Untyped.WhileLoop _ -> failwith "TODO"
+//     | Untyped.Binding((ident, identRange), isMutable, annotation, value, range) ->
+//         let expected = annotation |> Option.map (getTypeFromAnnotation com scope)
+//         let value = checkExpr com scope expected value
+//         let ref, scope = addLocalValueRefToScope scope ident identRange value.Type isMutable
+//         scope, Binding(ref, value, range)
+//     | Untyped.FlowControlStatement control ->
+//         let control = checkFlowControl com scope (Primitive Void) control
+//         scope, FlowControlStatement control
 
-let checkBlock (com: FileCompiler) (scope: Scope) (expected: Type) (block: Untyped.Block): Block =
-    let scope = { parent = Some scope; references = Map.empty }
-    let statements, ret =
-        match expected, block.returnStatement with
-        | Primitive Void, Some ret ->
-            match ret with
-            | Untyped.Return e ->
-                com.AddError(Error.unexpectedReturningBlock, e.Range)
-                block.statements, None
-            | Untyped.FlowControlReturn c ->
-                block.statements @ [Untyped.FlowControlStatement c], None
-        | Primitive Void, None ->
-            block.statements, None
-        | _, None  ->
-            com.AddError(Error.unexpectedVoidBlock, block.Range)
-            block.statements, Untyped.Literal(NullLiteral, SourceLocation.Empty) |> Untyped.Return |> Some
-        | _, Some r ->
-            block.statements, Some r
-    let scope, statements =
-        ((scope, []), statements) ||> List.fold (fun (scope, acc) stmnt ->
-            let scope, stmnt = checkStatement com scope stmnt
-            scope, stmnt::acc)
-    let ret =
-        ret |> Option.map (function
-            | Untyped.Return e ->
-                checkExpr com scope (Some expected) e |> Return
-            | Untyped.FlowControlReturn c ->
-                checkFlowControl com scope expected c |> FlowControlReturn)
-    { statements = List.rev statements
-      returnStatement = ret }
+// let checkBlock (com: FileCompiler) (scope: Scope) (expected: Type) (block: Untyped.Block): Block =
+//     let scope = { parent = Some scope; references = Map.empty }
+//     let statements, ret =
+//         match expected, block.returnStatement with
+//         | Primitive Void, Some ret ->
+//             match ret with
+//             | Untyped.Return e ->
+//                 com.AddError(Error.unexpectedReturningBlock, e.Range)
+//                 block.statements, None
+//             | Untyped.FlowControlReturn c ->
+//                 block.statements @ [Untyped.FlowControlStatement c], None
+//         | Primitive Void, None ->
+//             block.statements, None
+//         | _, None  ->
+//             com.AddError(Error.unexpectedVoidBlock, block.Range)
+//             block.statements, Untyped.Literal(NullLiteral, SourceLocation.Empty) |> Untyped.Return |> Some
+//         | _, Some r ->
+//             block.statements, Some r
+//     let scope, statements =
+//         ((scope, []), statements) ||> List.fold (fun (scope, acc) stmnt ->
+//             let scope, stmnt = checkStatement com scope stmnt
+//             scope, stmnt::acc)
+//     let ret =
+//         ret |> Option.map (function
+//             | Untyped.Return e ->
+//                 checkExpr com scope (Some expected) e |> Return
+//             | Untyped.FlowControlReturn c ->
+//                 checkFlowControl com scope expected c |> FlowControlReturn)
+//     { statements = List.rev statements
+//       returnStatement = ret }
 
-let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExpr =
-    match boe with
-    | Untyped.Block block -> checkBlock com scope expected block |> Block
-    | Untyped.Expr expr -> checkExpr com scope (Some expected) expr |> Expr
+// let checkBlockOrExpr (com: FileCompiler) (scope: Scope) expected boe: BlockOrExpr =
+//     match boe with
+//     | Untyped.Block block -> checkBlock com scope expected block |> Block
+//     | Untyped.Expr expr -> checkExpr com scope (Some expected) expr |> Expr
 
 let check file (ast: Untyped.FileAst): FileAst =
     let com = FileCompiler(file)
@@ -320,7 +318,7 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
             |> makeReference name range decl.export
         // TODO: Exported values cannot be mutable
         | Untyped.ValueDeclaration(isMutable, (name, range), annotation, body) ->
-            let t = getTypeFromAnnotationOrInferFromExpr com scope annotation (Untyped.Expr body)
+            let t = getTypeFromAnnotationOrInferFromExpr com scope annotation body
             ValueRef(t, isMutable, false)
             |> makeReference name range decl.export
     let declMap =

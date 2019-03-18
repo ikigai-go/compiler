@@ -30,7 +30,7 @@ declare module "*Interop.fs" {
     function makeMethodSignature(name: IToken, args: ArgumentSignature[], hasSpread: boolean, returnType: Type): Signature;
     function makeMethod(name: IToken, args: Argument[], hasSpread: boolean, returnType: Type|null, body: Expr): Member;
     function makeArgumentSignature(name: IToken, isOptional: boolean, argType: Type): ArgumentSignature;
-    function makeValueDeclaration(mut: string, ident: IToken, body: Expr): DeclarationKind;
+    function makeValueDeclaration(isMutable: boolean, ident: IToken, body: Expr): DeclarationKind;
     function makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Signature[]): DeclarationKind;
     function makeTrainDeclaration(skillName: IToken, trainedType: Type, members: Member[]): DeclarationKind;
     function makeDeclaration(isExport: boolean, decl: DeclarationKind): Declaration;

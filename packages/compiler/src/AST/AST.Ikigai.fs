@@ -97,7 +97,7 @@ module Untyped =
         | MethodSignature of name: RangedName * args: ArgumentSignature list * hasSpread: bool * returnType: Type
 
     type Member =
-        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type option * body: BlockOrExpr
+        | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type option * body: Expr
 
     type OperationKind =
         | Call of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool
@@ -117,50 +117,29 @@ module Untyped =
           defaultValue: Expr option
           range: SourceLocation }
 
-    type Block =
-        { statements: Statemement list
-          returnStatement: ReturnStatement option }
-        member __.Range: SourceLocation =
-            failwith "TODO: Add statements' ranges"
+    // type FlowControl =
+    //     | TryCatch of body: Block * catch: (string * SourceLocation * Block) option * finalizer: Block option
+    //     | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
 
-    type BlockOrExpr =
-        | Block of Block
-        | Expr of Expr
-        member this.Range =
-            match this with
-            | Block x -> x.Range
-            | Expr x -> x.Range
-
-    type ElseIfOrBlock =
-        | ElseIf of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock
-        | ElseBlock of Block
-
-    type FlowControl =
-        | TryCatch of body: Block * catch: (string * SourceLocation * Block) option * finalizer: Block option
-        | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
-
-    type ReturnStatement =
-        | Return of Expr
-        | FlowControlReturn of FlowControl
-
-    type Statemement =
-        | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
-        | Binding of ident: RangedName * isMutable: bool * annotation: Type option * value: Expr * range: SourceLocation
-        | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
-        | WhileLoop of guard: Expr * body: Block * range: SourceLocation
-        // | ForLoop
-        // | Break
-        // | Debugger of range: SourceLocation
-        // | Throw of Expr * range: SourceLocation
-        | FlowControlStatement of FlowControl
+    // type Statemement =
+    //     | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
+    //     | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
+    //     | WhileLoop of guard: Expr * body: Block * range: SourceLocation
+    //     // | ForLoop
+    //     // | Break
+    //     // | Debugger of range: SourceLocation
+    //     // | Throw of Expr * range: SourceLocation
+    //     | FlowControlStatement of FlowControl
 
     type Expr =
         | Literal of LiteralKind * range: SourceLocation
         | Ident of name: string * range: SourceLocation
-        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Type option * body: BlockOrExpr
+        | Function of args: Argument list * hasSpread: bool * returnAnnotation: Type option * body: Expr
 
         | Operation of OperationKind * range: SourceLocation
         | Get of baseExpr: Expr * indexExpr: Expr
+
+        | Binding of ident: RangedName * isMutable: bool * annotation: Type option * value: Expr * body: Expr
 
         member this.Range =
             match this with
@@ -169,6 +148,7 @@ module Untyped =
             | Operation(_,r) -> r
             | Get(e1,e2) -> e1.Range + e2.Range
             | Function(_,_,_,body) -> body.Range
+            | Binding((_,r),_,_,_,_) -> r // TODO: Add value range?
 
 // Typed AST
 
@@ -179,7 +159,7 @@ type Signature =
     | MethodSignature of name: RangedName * args: ArgumentSignature list * hasSpread: bool * returnType: Type
 
 type Member =
-    | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: BlockOrExpr
+    | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: Expr
 
 type Declaration =
     | ValueDeclaration of ident: Reference * body: Expr
@@ -222,63 +202,32 @@ type Argument =
     { reference: Reference
       defaultValue: Expr option }
 
-type Block =
-    { statements: Statemement list
-      returnStatement: ReturnStatement option }
-    member this.Type =
-        match this.returnStatement with
-        | Some r -> r.Type
-        | None -> Primitive Void
+// type FlowControl =
+//     // TODO: Enforce either catch or finalizer or both
+//     | TryCatch of body: Block * catch: (Reference * Block) option * finalizer: Block option
+//     // TODO: Else block can also be IfThenElse
+//     | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
 
-type BlockOrExpr =
-    | Block of Block
-    | Expr of Expr
-    member this.Type =
-        match this with
-        | Block b -> b.Type
-        | Expr e -> e.Type
-
-type ElseIfOrBlock =
-    | ElseIf of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock
-    | ElseBlock of Block
-
-type FlowControl =
-    // TODO: Enforce either catch or finalizer or both
-    | TryCatch of body: Block * catch: (Reference * Block) option * finalizer: Block option
-    // TODO: Else block can also be IfThenElse
-    | IfThenElse of guardExpr: Expr * thenBlock: Block * elseBlock: ElseIfOrBlock option
-    member this.Type =
-        match this with
-        | TryCatch(body,_,_) -> body.Type
-        | IfThenElse(_,thenExpr,_) -> thenExpr.Type
-
-type ReturnStatement =
-    | Return of Expr
-    | FlowControlReturn of FlowControl
-    member this.Type =
-        match this with
-        | Return e -> e.Type
-        // TODO: This shouldn't be Void, check?
-        | FlowControlReturn c -> c.Type
-
-type Statemement =
-    | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
-    | Binding of ident: Reference * value: Expr * range: SourceLocation
-    | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
-    | WhileLoop of guard: Expr * body: Block * range: SourceLocation
-    // | ForLoop
-    // | Break
-    // | Debugger of range: SourceLocation option
-    // | Throw of Expr * typ: Type * range: SourceLocation option
-    | FlowControlStatement of FlowControl
+// type Statemement =
+//     | CallStatement of baseExpr: Expr * args: Expr list * isConstructor: bool * hasSpread: bool * range: SourceLocation
+//     | Binding of ident: Reference * value: Expr * range: SourceLocation
+//     | Assignment of baseExpr: Expr * valueExpr: Expr * range: SourceLocation
+//     | WhileLoop of guard: Expr * body: Block * range: SourceLocation
+//     // | ForLoop
+//     // | Break
+//     // | Debugger of range: SourceLocation option
+//     // | Throw of Expr * typ: Type * range: SourceLocation option
+//     | FlowControlStatement of FlowControl
 
 type Expr =
     | Literal of LiteralKind
     | Ident of Reference * SourceLocation option
-    | Function of args: Argument list * hasSpread: bool * body: BlockOrExpr
+    | Function of args: Argument list * hasSpread: bool * body: Expr
 
     | Operation of OperationKind * typ: Type * range: SourceLocation option
     | Get of baseExpr: Expr * indexExpr: Expr * typ: Type * range: SourceLocation option
+
+    | Binding of ident: Reference * value: Expr * body: Expr
 
     // | DecisionTree of Expr * targets: (Ident list * Expr) list
     // | DecisionTreeSuccess of targetIndex: int * boundValues: Expr list * Type
@@ -293,6 +242,7 @@ type Expr =
             FunctionType(argTypes, hasSpread, body.Type)
         | Operation(_,t,_) -> t
         | Get(_,_,t,_) -> t
+        | Binding(_,_,e) -> e.Type
 
     member this.Range =
         match this with
@@ -301,3 +251,4 @@ type Expr =
         | Function _ -> None // TODO: Include range?
         | Operation(_,_,r) -> r
         | Get(_,_,_,r) -> r
+        | Binding(i,_,_) -> i.declarationLocation

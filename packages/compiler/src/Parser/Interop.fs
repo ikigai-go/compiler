@@ -22,11 +22,23 @@ type IToken =
     abstract member tokenTypeIdx: int
     abstract member tokenType: TokenType
 
-type Error = interface end
+type LexerError =
+    abstract column: int
+    abstract length: int
+    abstract line: int
+    abstract message: string
+    abstract offset: int
+
+type ParserError =
+    abstract name: string
+    abstract message: string
+    abstract token: IToken
+    // TODO: https://sap.github.io/chevrotain/documentation/4_3_0/interfaces/irecognitionexception.html
 
 type ParseResult =
     abstract member ast: Untyped.FileAst option
-    abstract member errors: Error[]
+    abstract member lexerErrors: LexerError[]
+    abstract member parserErrors: ParserError[]
 
 let parse(txt: string): ParseResult = import "parse" "./Parser.js"
 
@@ -68,8 +80,7 @@ let makeCallOperation(baseExpr: Untyped.Expr, args: Untyped.Expr[], isConstructo
 let makeGetExpression(baseExpr: Untyped.Expr, memberExpr: Untyped.Expr) =
     Untyped.Get(baseExpr, memberExpr)
 
-let makeValueDeclaration(mutabilityModifier: string, ident: IToken, body: Untyped.Expr) =
-    let isMutable = mutabilityModifier = "mutable"
+let makeValueDeclaration(isMutable: bool, ident: IToken, body: Untyped.Expr) =
     Untyped.ValueDeclaration(isMutable, (ident.image, rangeFromToken ident), None, body)
 
 let makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Untyped.Signature[]) =
@@ -79,7 +90,7 @@ let makeTrainDeclaration(skillName: IToken, trainedType: Untyped.Type, members: 
     Untyped.TrainDeclaration((skillName.image, rangeFromToken skillName), trainedType, Array.toList members)
 
 let makeMethod(name: IToken, args, hasSpread, returnType, body): Untyped.Member =
-    Untyped.Method((name.image, rangeFromToken name), Array.toList args, hasSpread, returnType, Untyped.Expr body)
+    Untyped.Method((name.image, rangeFromToken name), Array.toList args, hasSpread, returnType, body)
 
 let makeDeclaration(export: bool, decl: Untyped.DeclarationKind): Untyped.Declaration =
     { kind = decl; export = export }
@@ -95,8 +106,8 @@ let makeArgumentSignature(name: IToken, isOptional, argType): Untyped.ArgumentSi
 let makeProgram(decls: Untyped.Declaration[]): Untyped.FileAst =
     { declarations = Array.toList decls }
 
-let makeLambdaExpression(args: Untyped.Argument[], hasSpread, returnAnnotation, body: Untyped.Expr): Untyped.Expr =
-    Untyped.Function(Array.toList args, hasSpread, returnAnnotation, Untyped.Expr body)
+let makeLambdaExpression(args: Untyped.Argument[], hasSpread, returnAnnotation, body): Untyped.Expr =
+    Untyped.Function(Array.toList args, hasSpread, returnAnnotation, body)
 
 let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
     { name = ident.image

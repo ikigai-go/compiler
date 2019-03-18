@@ -24,6 +24,6 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "chevrotain": "^4.2.0"
+    "chevrotain": "^4.3.0"
   }
 }
