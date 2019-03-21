@@ -272,6 +272,7 @@ let check file (ast: Untyped.FileAst): FileAst =
     let scope = getGlobalScope com ast
     let decls = ast.declarations |> List.choose (fun decl ->
         match decl.kind with
+        | Untyped.EnumDeclaration _ -> None // TODO
         // TODO: Add skill declarations to typed tree too?
         | Untyped.SkillDeclaration _ -> None
         | Untyped.TrainDeclaration((skill, range), trained, members) ->
@@ -309,6 +310,9 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
                       isOptional = a.isOptional })
                 MethodSignature(name, args, hasSpread, getTypeFromAnnotation com scope returnType)
         match decl.kind with
+        | Untyped.EnumDeclaration((name, range), _, _) ->
+            EnumRef // TODO
+            |> makeReference name range decl.export
         | Untyped.TrainDeclaration((skill, range), trained, _) ->
             TrainRef(findRef declMap scope skill, getTypeFromAnnotation com scope trained)
             |> makeReference (Naming.trainName skill trained.Name) range decl.export
@@ -324,6 +328,8 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
     let declMap =
         (Map.empty, ast.declarations) ||> List.fold (fun acc decl ->
             match decl.kind with
+            | Untyped.EnumDeclaration((name,_),_,_) ->
+                Map.add name decl acc
             | Untyped.TrainDeclaration((skill,_),trained,_) ->
                 Map.add (Naming.trainName skill trained.Name) decl acc
             | Untyped.SkillDeclaration((name,_),_,_) ->

@@ -115,7 +115,7 @@ let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
       defaultValue = defaultValue
       range = rangeFromToken ident }
 
-let rec makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
+let makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
     let r = rangeFromToken ident
     let genArgs = Array.toList genArgs
     match genArgs, Primitive.TryParse ident.image with
@@ -124,3 +124,9 @@ let rec makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
         if GENERIC_PATTERN.IsMatch(ident.image) then
             Untyped.GenericParam(ident.image, r, genArgs)
         else Untyped.DeclaredType(ident.image, r, genArgs)
+
+let makeEnumCase(name: IToken, fieldTypes: Untyped.Type[]): Untyped.EnumCase =
+    (name.image, rangeFromToken name), List.ofArray fieldTypes
+
+let makeEnumDeclaration(name: IToken, genArgs: Untyped.Type[], cases: Untyped.EnumCase[]): Untyped.DeclarationKind =
+    Untyped.EnumDeclaration((name.image, rangeFromToken name), List.ofArray genArgs, List.ofArray cases)

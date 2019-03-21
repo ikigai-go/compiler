@@ -24,7 +24,7 @@ class IkigaiParser extends Parser {
             this.CONSUME(Tok.Export)
         })
         const decl = this.OR([
-            // { ALT: () => this.SUBRULE(this.EnumDeclaration) },
+            { ALT: () => this.SUBRULE(this.EnumDeclaration) },
             { ALT: () => this.SUBRULE(this.SkillDeclaration) },
             { ALT: () => this.SUBRULE(this.TrainDeclaration) },
             { ALT: () => this.SUBRULE(this.ValueDeclaration) },
@@ -32,34 +32,43 @@ class IkigaiParser extends Parser {
         return I.makeDeclaration(exportToken != null, decl);
     })
 
-    // public EnumDeclaration = this.RULE("EnumDeclaration", () => {
-    //     const cases: IToken[] = [];
-    //     this.CONSUME(Tok.Enum)
-    //     const name = this.CONSUME(Tok.Identifier);
-    //     // this.CONSUME(Tok.LAngleBracket);
-    //     // const genericParam = this.CONSUME2(Tok.Identifier);
-    //     // this.CONSUME(Tok.RAngleBracket);
+    public EnumDeclaration = this.RULE("EnumDeclaration", () => {
+        const cases: I.EnumCase[] = [];
+        this.CONSUME(Tok.Enum)
+        const name = this.CONSUME(Tok.Identifier);
+        const genArgs = this.SUBRULE(this.GenericArgs);
+        this.CONSUME(Tok.Assignment);
+        // TODO: Make indentation optional
+        this.CONSUME(Tok.PushIndent)
+        this.MANY(() => {
+            this.CONSUME(Tok.Pipe)
+            cases.push(this.SUBRULE(this.EnumCase))
+        })
+        this.CONSUME(Tok.PopIndent)
+        return I.makeEnumDeclaration(name, genArgs, cases);
+    })
 
-    //     // TODO: Make indentation optional
-    //     this.CONSUME(Tok.PushIndent)
-    //     this.CONSUME(Tok.Assignment);
-    //     cases.push(this.CONSUME(Tok.Identifier))
-    //     this.MANY(() => {
-    //         this.CONSUME(Tok.Pipe)
-    //         cases.push(this.CONSUME2(Tok.Identifier))
-    //     })
-    //     this.CONSUME(Tok.PopIndent)
-    //     return I.makeEnumDeclaration(name, genericParam, cases);
-    // })
-
+    public EnumCase = this.RULE("EnumCase", () => {
+        const fieldTypes: I.Type[] = []
+        const id = this.CONSUME(Tok.Identifier);
+        this.OPTION(() => {
+            this.CONSUME(Tok.LParen)
+            // TODO: Optional indentation
+            fieldTypes.push(this.SUBRULE(this.Type))
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma)
+                fieldTypes.push(this.SUBRULE2(this.Type))
+            })
+            this.CONSUME(Tok.RParen)
+        })
+        return I.makeEnumCase(id, fieldTypes);
+    })
 
     public SkillDeclaration = this.RULE("SkillDeclaration", () => {
         const signatures: I.Signature[] = [];
         this.CONSUME(Tok.Skill)
         const name = this.CONSUME(Tok.Identifier);
         this.CONSUME(Tok.LAngleBracket);
-        // TODO: Stricter rules for generic params?
-        // (e.g. single uppercase letter with optional digit)
         const genericParam = this.CONSUME2(Tok.Identifier);
         this.CONSUME(Tok.RAngleBracket);
         this.CONSUME(Tok.LBrace);
@@ -302,6 +311,11 @@ class IkigaiParser extends Parser {
     public Type = this.RULE("Type", () => {
         // TODO: ad-hoc signatures
         const id = this.CONSUME(Tok.Identifier);
+        const genArgs = this.SUBRULE(this.GenericArgs);
+        return I.makeType(id, genArgs);
+    })
+
+    public GenericArgs = this.RULE("GenericArgs", () => {
         const genArgs: I.Type[] = []
         this.OPTION(() => {
             this.CONSUME(Tok.LAngleBracket);
@@ -312,7 +326,7 @@ class IkigaiParser extends Parser {
             })
             this.CONSUME(Tok.RAngleBracket);
         });
-        return I.makeType(id, genArgs);
+        return genArgs;
     })
 
     // LITERALS --------------------------------------

@@ -82,6 +82,8 @@ module Untyped =
             | GenericParam(name,_,_) -> name
             | DeclaredType(name,_,_) -> name // Generic args are not included in the reference name
 
+    type EnumCase = RangedName * Type list
+
     type FileAst =
         { declarations: Declaration list }
 
@@ -89,6 +91,7 @@ module Untyped =
         | ValueDeclaration of isMutable: bool * name: RangedName * annotation: Type option * body: Expr
         | SkillDeclaration of name: RangedName * generic: string * Signature list
         | TrainDeclaration of skillName: RangedName * trainedType: Type * Member list
+        | EnumDeclaration of name: RangedName * genericArgs: Type list * cases: EnumCase list
 
     type Declaration =
         { kind: DeclarationKind; export: bool }
@@ -177,6 +180,7 @@ type ReferenceKind =
     | ValueRef of valType: Type * isMutable: bool * isCompilerGenerated: bool
     | SkillRef of generic: string * members: Signature list
     | TrainRef of skillRef: Reference * trainedType: Type
+    | EnumRef // TODO
 
 type Reference =
     { name: string

@@ -1,6 +1,6 @@
-//enum Foo =
-//    | Bar
-//    | Baz
+enum Foo =
+    | Bar
+    | Baz(number, string)
 
 export skill Pretty<T> {
     prettify(x: T): string
