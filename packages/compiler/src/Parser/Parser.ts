@@ -24,12 +24,34 @@ class IkigaiParser extends Parser {
             this.CONSUME(Tok.Export)
         })
         const decl = this.OR([
+            // { ALT: () => this.SUBRULE(this.EnumDeclaration) },
             { ALT: () => this.SUBRULE(this.SkillDeclaration) },
             { ALT: () => this.SUBRULE(this.TrainDeclaration) },
             { ALT: () => this.SUBRULE(this.ValueDeclaration) },
         ]);
         return I.makeDeclaration(exportToken != null, decl);
     })
+
+    // public EnumDeclaration = this.RULE("EnumDeclaration", () => {
+    //     const cases: IToken[] = [];
+    //     this.CONSUME(Tok.Enum)
+    //     const name = this.CONSUME(Tok.Identifier);
+    //     // this.CONSUME(Tok.LAngleBracket);
+    //     // const genericParam = this.CONSUME2(Tok.Identifier);
+    //     // this.CONSUME(Tok.RAngleBracket);
+
+    //     // TODO: Make indentation optional
+    //     this.CONSUME(Tok.PushIndent)
+    //     this.CONSUME(Tok.Assignment);
+    //     cases.push(this.CONSUME(Tok.Identifier))
+    //     this.MANY(() => {
+    //         this.CONSUME(Tok.Pipe)
+    //         cases.push(this.CONSUME2(Tok.Identifier))
+    //     })
+    //     this.CONSUME(Tok.PopIndent)
+    //     return I.makeEnumDeclaration(name, genericParam, cases);
+    // })
+
 
     public SkillDeclaration = this.RULE("SkillDeclaration", () => {
         const signatures: I.Signature[] = [];
@@ -40,15 +62,12 @@ class IkigaiParser extends Parser {
         // (e.g. single uppercase letter with optional digit)
         const genericParam = this.CONSUME2(Tok.Identifier);
         this.CONSUME(Tok.RAngleBracket);
-        this.CONSUME(Tok.Indent)
         this.CONSUME(Tok.LBrace);
-        signatures.push(this.SUBRULE(this.Signature))
-        this.MANY(() => {
-            this.CONSUME(Tok.Comma)
-            signatures.push(this.SUBRULE2(this.Signature))
-        })
+        // TODO: Optional indentation
+        this.CONSUME(Tok.PushIndent)
+        this.MANY(() => { signatures.push(this.SUBRULE(this.Signature)) })
+        this.CONSUME(Tok.PopIndent)
         this.CONSUME(Tok.RBrace);
-        this.CONSUME(Tok.Outdent)
         return I.makeSkillDeclaration(name, genericParam, signatures);
     })
 
@@ -57,6 +76,7 @@ class IkigaiParser extends Parser {
         const name = this.CONSUME(Tok.Identifier);
         const args: I.ArgumentSignature[] = [];
         this.CONSUME(Tok.LParen)
+        // TODO: Optional indentation
         this.OPTION(() => {
             args.push(this.SUBRULE(this.ArgumentSignature))
             this.MANY(() => {
@@ -79,15 +99,12 @@ class IkigaiParser extends Parser {
         this.CONSUME(Tok.LAngleBracket);
         const trainedType = this.SUBRULE(this.Type);
         this.CONSUME(Tok.RAngleBracket);
-        this.CONSUME(Tok.Indent)
         this.CONSUME(Tok.LBrace);
-        members.push(this.SUBRULE(this.Member))
-        this.MANY(() => {
-            this.CONSUME(Tok.Comma)
-            members.push(this.SUBRULE2(this.Member))
-        })
+        // TODO: Optional indentation
+        this.CONSUME(Tok.PushIndent)
+        this.MANY(() => { members.push(this.SUBRULE(this.Member)) })
+        this.CONSUME(Tok.PopIndent)
         this.CONSUME(Tok.RBrace);
-        this.CONSUME(Tok.Outdent)
         return I.makeTrainDeclaration(skillName, trainedType, members);
     })
 
@@ -96,6 +113,7 @@ class IkigaiParser extends Parser {
         const name = this.CONSUME(Tok.Identifier);
         const args: I.Argument[] = [];
         this.CONSUME(Tok.LParen)
+        // TODO: Optional indentation
         this.OPTION(() => {
             args.push(this.SUBRULE(this.Argument))
             this.MANY(() => {
@@ -119,7 +137,6 @@ class IkigaiParser extends Parser {
         const mut = this.OPTION(() => this.CONSUME(Tok.Mutable));
         const id = this.CONSUME(Tok.Identifier)
         this.CONSUME(Tok.Assignment)
-        // TODO: Optional indentation
         const exp = this.SUBRULE(this.MaybeIndentedExpression)
         return I.makeValueDeclaration(mut != null, id, exp)
     })
@@ -129,9 +146,9 @@ class IkigaiParser extends Parser {
     public MaybeIndentedExpression = this.RULE("MaybeIndentedExpression", () => {
         return this.OR([
             { ALT: () => {
-                this.CONSUME(Tok.Indent)
+                this.CONSUME(Tok.PushIndent)
                 const e = this.SUBRULE(this.Expression)
-                this.CONSUME(Tok.Outdent)
+                this.CONSUME(Tok.PopIndent)
                 return e;
             } },
             { ALT: () => this.SUBRULE1(this.Expression) },
@@ -150,6 +167,7 @@ class IkigaiParser extends Parser {
         let items: (I.Expr|IToken)[] = [];
         items.push(this.SUBRULE(this.ProductExpression))
         this.MANY(() => {
+            // this.OPTION(() => this.CONSUME(Tok.StartLine))
             items.push(this.CONSUME(Tok.AdditionOperator))
             items.push(this.SUBRULE2(this.ProductExpression))
         })
@@ -160,6 +178,7 @@ class IkigaiParser extends Parser {
         let items: (I.Expr|IToken)[] = [];
         items.push(this.SUBRULE(this.ExponentialExpression))
         this.MANY(() => {
+            // this.OPTION(() => this.CONSUME(Tok.StartLine))
             items.push(this.CONSUME(Tok.ProductOperator))
             items.push(this.SUBRULE2(this.ExponentialExpression))
         })
@@ -196,6 +215,7 @@ class IkigaiParser extends Parser {
         const callOp = this.OPTION2(() => {
             const argExprs: I.Expr[] = [];
             this.CONSUME(Tok.LParen)
+            // TODO: Optional indentation
             this.OPTION3(() => {
                 argExprs.push(this.SUBRULE(this.Expression))
                 this.MANY(() => {
@@ -222,6 +242,7 @@ class IkigaiParser extends Parser {
         const memberExpr = this.OPTION(() => this.OR2([
             { ALT: () => {
                 this.CONSUME(Tok.LBracket)
+                // TODO: Optional indentation
                 const e = this.SUBRULE(this.Expression)
                 this.CONSUME(Tok.RBracket)
                 return e;
@@ -238,7 +259,7 @@ class IkigaiParser extends Parser {
 
     public ParensExpression = this.RULE("ParensExpression", () => {
         this.CONSUME(Tok.LParen)
-        const expr = this.SUBRULE(this.Expression)
+        const expr = this.SUBRULE(this.MaybeIndentedExpression)
         this.CONSUME(Tok.RParen)
         return expr;
     })
@@ -246,6 +267,7 @@ class IkigaiParser extends Parser {
     public LambdaExpression = this.RULE("LambdaExpression", () => {
         const args: I.Argument[] = [];
         this.CONSUME(Tok.LParen)
+        // TODO: Optional indentation
         this.OPTION(() => {
             args.push(this.SUBRULE(this.Argument))
             this.MANY(() => {
@@ -323,11 +345,18 @@ function associateBinaryRight(items: (I.Expr|IToken)[]): I.Expr {
 const parser = new IkigaiParser()
 const lexer = new Lexer(Object.keys(Tok).map(k => Tok[k]));
 
+function printTokens(tokens: IToken[], startLine = 0, endLine = 0) {
+    for (const t of tokens) {
+        if (t.tokenType && (!startLine || (t.startLine && t.startLine >= startLine)) && (!endLine || (t.endLine && t.endLine <= endLine)))
+            console.log(`${t.startLine},${t.startColumn} (${t.startOffset}) ${(t.tokenType.tokenName) }: ${t.image}`);
+    }
+}
+
 export function parse(text: string) {
     const lexingResult = tokenize(lexer, text)
     // "input" is a setter which will reset the parser's state.
     parser.input = lexingResult.tokens
-    // console.log(lexingResult.tokens.map((x: any) => x.tokenType.tokenName));
+    // printTokens(lexingResult.tokens, 40, 50)
     const ast = parser.Program()
     return {
         ast,
