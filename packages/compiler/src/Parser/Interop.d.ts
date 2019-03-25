@@ -34,8 +34,8 @@ declare module "*Interop.fs" {
     function makeValueDeclaration(isMutable: boolean, ident: IToken, body: Expr): DeclarationKind;
     function makeSkillDeclaration(name: IToken, genericParam: IToken, signatures: Signature[]): DeclarationKind;
     function makeTrainDeclaration(skillName: IToken, trainedType: Type, members: Member[]): DeclarationKind;
-    function makeEnumDeclaration(name: IToken, genArgs: Type[], cases: EnumCase[]): DeclarationKind;
-    function makeEnumCase(name: IToken, fieldTypes: Type[]): EnumCase;
+    function makeEnumDeclaration(name: IToken, generic: IToken[], cases: EnumCase[]): DeclarationKind;
+    function makeEnumCase(name: IToken, fields: [string|null, Type][]): EnumCase;
     function makeDeclaration(isExport: boolean, decl: DeclarationKind): Declaration;
     function makeProgram(decls: Declaration[]): FileAst;
 }

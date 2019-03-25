@@ -113,7 +113,7 @@ let makeArgument(ident: IToken, annotation, defaultValue): Untyped.Argument =
     { name = ident.image
       annotation = annotation
       defaultValue = defaultValue
-      range = rangeFromToken ident }
+      location = rangeFromToken ident }
 
 let makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
     let r = rangeFromToken ident
@@ -125,8 +125,10 @@ let makeType(ident: IToken, genArgs: Untyped.Type[]): Untyped.Type =
             Untyped.GenericParam(ident.image, r, genArgs)
         else Untyped.DeclaredType(ident.image, r, genArgs)
 
-let makeEnumCase(name: IToken, fieldTypes: Untyped.Type[]): Untyped.EnumCase =
-    (name.image, rangeFromToken name), List.ofArray fieldTypes
+let makeEnumCase(name: IToken, fields: (string option * Untyped.Type)[]): Untyped.EnumCase =
+    // Fable.Import.JS.console.log("CASE", name.image, fields)
+    (name.image, rangeFromToken name), Array.toList fields
 
-let makeEnumDeclaration(name: IToken, genArgs: Untyped.Type[], cases: Untyped.EnumCase[]): Untyped.DeclarationKind =
-    Untyped.EnumDeclaration((name.image, rangeFromToken name), List.ofArray genArgs, List.ofArray cases)
+let makeEnumDeclaration(name: IToken, generic: IToken[], cases: Untyped.EnumCase[]): Untyped.DeclarationKind =
+    let generic = generic |> Array.mapToList (fun x -> x.image)
+    Untyped.EnumDeclaration((name.image, rangeFromToken name), generic, List.ofArray cases)

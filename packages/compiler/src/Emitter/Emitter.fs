@@ -54,6 +54,12 @@ let transformExpr = function
     | Binding _ -> failwith "TODO"
     | Literal kind ->
         transformLiteral kind
+    | NewEnum(_, _, c, args, r) ->
+        // TODO: If no case has data fields, translate as number (case index)
+        // If there's only one single case, erase?
+        let args = [| yield NumericLiteral(float c.index) :> Expression
+                      yield! args |> List.map transformExpr |]
+        upcast ArrayExpression(args, ?loc=r)
     | Ident(ref, r) ->
         upcast ident r ref
     | Function(args, hasSpread, body) ->
@@ -63,7 +69,7 @@ let transformExpr = function
         match kind with
         | Call(baseExpr, args, isCons, hasSpread) ->
             // TODO: Check spread
-            let args = args |> List.map transformExpr |> List.toArray
+            let args = args |> List.mapToArray transformExpr
             let baseExpr = transformExpr baseExpr
             if isCons then upcast NewExpression(baseExpr, args, ?loc=range)
             else upcast CallExpression(baseExpr, args, ?loc=range)

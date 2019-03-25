@@ -36,32 +36,50 @@ class IkigaiParser extends Parser {
         const cases: I.EnumCase[] = [];
         this.CONSUME(Tok.Enum)
         const name = this.CONSUME(Tok.Identifier);
-        const genArgs = this.SUBRULE(this.GenericArgs);
+        const generic: IToken[] = [];
+        this.OPTION(() => {
+            this.CONSUME(Tok.LAngleBracket);
+            generic.push(this.CONSUME1(Tok.Identifier));
+            this.MANY(() => {
+                this.CONSUME(Tok.Comma);
+                generic.push(this.CONSUME2(Tok.Identifier));
+            })
+            this.CONSUME(Tok.RAngleBracket);
+        });
         this.CONSUME(Tok.Assignment);
         // TODO: Make indentation optional
         this.CONSUME(Tok.PushIndent)
-        this.MANY(() => {
+        this.MANY2(() => {
             this.CONSUME(Tok.Pipe)
             cases.push(this.SUBRULE(this.EnumCase))
         })
         this.CONSUME(Tok.PopIndent)
-        return I.makeEnumDeclaration(name, genArgs, cases);
+        return I.makeEnumDeclaration(name, generic, cases);
     })
 
     public EnumCase = this.RULE("EnumCase", () => {
-        const fieldTypes: I.Type[] = []
+        const fields: [string|null, I.Type][] = []
         const id = this.CONSUME(Tok.Identifier);
         this.OPTION(() => {
             this.CONSUME(Tok.LParen)
             // TODO: Optional indentation
-            fieldTypes.push(this.SUBRULE(this.Type))
+            fields.push(this.SUBRULE(this.EnumCaseField))
             this.MANY(() => {
                 this.CONSUME(Tok.Comma)
-                fieldTypes.push(this.SUBRULE2(this.Type))
+                fields.push(this.SUBRULE2(this.EnumCaseField))
             })
             this.CONSUME(Tok.RParen)
         })
-        return I.makeEnumCase(id, fieldTypes);
+        return I.makeEnumCase(id, fields);
+    })
+
+    public EnumCaseField = this.RULE("EnumCaseField", () => {
+        const name = this.OPTION(() => {
+            const name = this.CONSUME(Tok.Identifier).image;
+            this.CONSUME(Tok.Colon);
+            return name;
+        })
+        return [name, this.SUBRULE(this.Type)]
     })
 
     public SkillDeclaration = this.RULE("SkillDeclaration", () => {

@@ -82,7 +82,7 @@ module Untyped =
             | GenericParam(name,_,_) -> name
             | DeclaredType(name,_,_) -> name // Generic args are not included in the reference name
 
-    type EnumCase = RangedName * Type list
+    type EnumCase = RangedName * (string option * Type) list
 
     type FileAst =
         { declarations: Declaration list }
@@ -91,7 +91,7 @@ module Untyped =
         | ValueDeclaration of isMutable: bool * name: RangedName * annotation: Type option * body: Expr
         | SkillDeclaration of name: RangedName * generic: string * Signature list
         | TrainDeclaration of skillName: RangedName * trainedType: Type * Member list
-        | EnumDeclaration of name: RangedName * genericArgs: Type list * cases: EnumCase list
+        | EnumDeclaration of name: RangedName * generic: string list * cases: EnumCase list
 
     type Declaration =
         { kind: DeclarationKind; export: bool }
@@ -118,7 +118,7 @@ module Untyped =
         { name: string
           annotation: Type option
           defaultValue: Expr option
-          range: SourceLocation }
+          location: SourceLocation }
 
     // type FlowControl =
     //     | TryCatch of body: Block * catch: (string * SourceLocation * Block) option * finalizer: Block option
@@ -164,6 +164,12 @@ type Signature =
 type Member =
     | Method of name: RangedName * args: Argument list * hasSpread: bool * returnType: Type * body: Expr
 
+type EnumCase =
+    { name: string
+      index: int
+      location: SourceLocation
+      fields: (string option * Type) list }
+
 type Declaration =
     | ValueDeclaration of ident: Reference * body: Expr
     // | SkillDeclaration of name: RangedName * generic: string * Signature list
@@ -180,7 +186,7 @@ type ReferenceKind =
     | ValueRef of valType: Type * isMutable: bool * isCompilerGenerated: bool
     | SkillRef of generic: string * members: Signature list
     | TrainRef of skillRef: Reference * trainedType: Type
-    | EnumRef // TODO
+    | EnumRef of generic: string list * cases: EnumCase list
 
 type Reference =
     { name: string
@@ -228,6 +234,7 @@ type Expr =
     | Ident of Reference * SourceLocation option
     | Function of args: Argument list * hasSpread: bool * body: Expr
 
+    | NewEnum of Reference * genArgs: Type list * EnumCase * args: Expr list * range: SourceLocation option
     | Operation of OperationKind * typ: Type * range: SourceLocation option
     | Get of baseExpr: Expr * indexExpr: Expr * typ: Type * range: SourceLocation option
 
@@ -244,6 +251,7 @@ type Expr =
             let argTypes = args |> List.map (fun a ->
                 { argType = a.reference.Type; isOptional = Option.isSome a.defaultValue })
             FunctionType(argTypes, hasSpread, body.Type)
+        | NewEnum(r,genArgs,_,_,_) -> DeclaredType(r, genArgs)
         | Operation(_,t,_) -> t
         | Get(_,_,t,_) -> t
         | Binding(_,_,e) -> e.Type
@@ -253,6 +261,7 @@ type Expr =
         | Literal _ -> None
         | Ident(_,r) -> r
         | Function _ -> None // TODO: Include range?
+        | NewEnum(_,_,_,_,r) -> r
         | Operation(_,_,r) -> r
         | Get(_,_,_,r) -> r
         | Binding(i,_,_) -> i.declarationLocation

@@ -35,6 +35,8 @@ type Scope =
             com.AddError(Error.cannotFindRef name, ?range=range)
             NULL_REF
 
+let (|RefKind|) (ref: Reference) = ref.kind
+
 let makeReference name r isExport kind: Reference =
     { name = name
       kind = kind
@@ -95,7 +97,7 @@ let checkFunction (com: FileCompiler) (scope: Scope) (args: Untyped.Argument lis
                 | Some x -> getTypeFromAnnotation com scope x
                 // TODO: Infer type if function is passed as argument (expected type) or add an error
                 | None -> Primitive Any
-            let ref, scope = addLocalValueRefToScope scope arg.name arg.range t false
+            let ref, scope = addLocalValueRefToScope scope arg.name arg.location t false
             // Using the accumulated scope here is intentional, in JS optional arguments
             // can refer to previous arguments as default value `add(x, y=x)`
             let defValue = arg.defaultValue |> Option.map (checkExpr com scope (Some t))
@@ -151,39 +153,50 @@ let checkExpr (com: FileCompiler) (scope: Scope) (expected: Type option) e =
         let args, body = checkFunction com scope args retType body
         Function(List.rev args, hasSpread, body)
     | Untyped.Operation(kind, range) ->
-        let typ, kind =
-            match kind with
-            | Untyped.Call(baseExpr, args, isCons, hasSpread) ->
-                let baseExpr = checkExpr com scope expected baseExpr
-                // TODO: Type check arguments ignoring skill ones
+        let makeOp typ kind =
+            Operation(kind, typ, Some range)
+        match kind with
+        | Untyped.Call(baseExpr, args, isCons, hasSpread) ->
+            let baseExpr = checkExpr com scope expected baseExpr
+            match baseExpr with
+            // TODO: Accept case name alone when expecting the enum
+            | Get(Ident(RefKind(EnumRef(_,cases)) as r1,_),Literal(StringLiteral caseName),_,_) ->
+                match cases |> List.tryFind (fun c -> c.name = caseName) with
+                | None ->
+                    com.AddError(Error.cannotFindEnumCase caseName r1.name, range)
+                    Call(baseExpr, [], false, false) |> makeOp (Primitive Any)
+                | Some c ->
+                    let genArs = [] // TODO
+                    NewEnum(r1, genArs, c, args |> List.map (checkExpr com scope expected), Some range)
+            | _ ->
+                // TODO: Type check arguments ignoring skill ones, fix expected
                 let args =
                     args |> List.map (checkExpr com scope expected)
                     |> injectSkillArgs com scope baseExpr.Type
                 let t = Primitive Any // TODO: Check baseExpr
-                t, Call(baseExpr, args, isCons, hasSpread)
-            | Untyped.UnaryOperation(op, e) ->
-                // TODO: Check the expected types according to the operator
-                let t = defaultArg expected (Primitive Any)
-                let e = checkExpr com scope expected e
-                t, UnaryOperation(op, e)
-            | Untyped.BinaryOperation(op, e1, e2) ->
-                // TODO: Check the expected types according to the operator
-                let t = defaultArg expected (Primitive Any)
-                let e1 = checkExpr com scope expected e1
-                let e2 = checkExpr com scope expected e2
-                t, BinaryOperation(op, e1, e2)
-            | Untyped.LogicalOperation(op, e1, e2) ->
-                // TODO: Check the expected types according to the operator
-                let e1 = checkExpr com scope expected e1
-                let e2 = checkExpr com scope expected e2
-                Primitive Boolean, LogicalOperation(op, e1, e2)
-            | Untyped.TernaryOperation(cond, thenExpr, elseExpr) ->
-                // TODO: Check condition is boolean and thenExpr/elseExpr have same type
-                let cond = checkExpr com scope expected cond
-                let thenExpr = checkExpr com scope expected thenExpr
-                let elseExpr = checkExpr com scope expected elseExpr
-                thenExpr.Type, TernaryOperation(cond, thenExpr, elseExpr)
-        Operation(kind, typ, Some range)
+                Call(baseExpr, args, isCons, hasSpread) |> makeOp t
+        | Untyped.UnaryOperation(op, e) ->
+            // TODO: Check the expected types according to the operator
+            let t = defaultArg expected (Primitive Any)
+            let e = checkExpr com scope expected e
+            UnaryOperation(op, e) |> makeOp t
+        | Untyped.BinaryOperation(op, e1, e2) ->
+            // TODO: Check the expected types according to the operator
+            let t = defaultArg expected (Primitive Any)
+            let e1 = checkExpr com scope expected e1
+            let e2 = checkExpr com scope expected e2
+            BinaryOperation(op, e1, e2) |> makeOp t
+        | Untyped.LogicalOperation(op, e1, e2) ->
+            // TODO: Check the expected types according to the operator
+            let e1 = checkExpr com scope expected e1
+            let e2 = checkExpr com scope expected e2
+            LogicalOperation(op, e1, e2) |> makeOp (Primitive Boolean)
+        | Untyped.TernaryOperation(cond, thenExpr, elseExpr) ->
+            // TODO: Check condition is boolean and thenExpr/elseExpr have same type
+            let cond = checkExpr com scope expected cond
+            let thenExpr = checkExpr com scope expected thenExpr
+            let elseExpr = checkExpr com scope expected elseExpr
+            TernaryOperation(cond, thenExpr, elseExpr) |> makeOp thenExpr.Type
     | Untyped.Get(baseExpr, indexExpr) ->
         // TODO: Check type of baseExpr to infer type
         let t = defaultArg expected (Primitive Any)
@@ -272,8 +285,8 @@ let check file (ast: Untyped.FileAst): FileAst =
     let scope = getGlobalScope com ast
     let decls = ast.declarations |> List.choose (fun decl ->
         match decl.kind with
-        | Untyped.EnumDeclaration _ -> None // TODO
-        // TODO: Add skill declarations to typed tree too?
+        // TODO: Add enum/skill declarations to typed tree too?
+        | Untyped.EnumDeclaration _
         | Untyped.SkillDeclaration _ -> None
         | Untyped.TrainDeclaration((skill, range), trained, members) ->
             let trained = getTypeFromAnnotation com scope trained
@@ -302,7 +315,7 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
                 match Map.tryFind name declMap with
                 | Some decl -> resolveReference declMap scope decl
                 | None -> failwithf "Cannot find reference in scope %s" name
-        let checkSignature declMap scope = function
+        let checkSignature scope = function
             | Untyped.MethodSignature(name, args, hasSpread, returnType) ->
                 let args = args |> List.map (fun a ->
                     { name = a.name
@@ -310,14 +323,22 @@ let getGlobalScope (com: FileCompiler) (ast: Untyped.FileAst): Scope =
                       isOptional = a.isOptional })
                 MethodSignature(name, args, hasSpread, getTypeFromAnnotation com scope returnType)
         match decl.kind with
-        | Untyped.EnumDeclaration((name, range), _, _) ->
-            EnumRef // TODO
+        | Untyped.EnumDeclaration((name, range), generic, cases) ->
+            // TODO: Check case names start with upper case
+            let cases = cases |> List.mapi (fun i ((caseName, caseRange), fields) ->
+                let fields = fields |> List.map (fun (fieldName, typ) ->
+                    fieldName, getTypeFromAnnotation com scope typ)
+                { name = caseName
+                  index = i
+                  location = caseRange
+                  fields = fields })
+            EnumRef(generic, cases)
             |> makeReference name range decl.export
         | Untyped.TrainDeclaration((skill, range), trained, _) ->
             TrainRef(findRef declMap scope skill, getTypeFromAnnotation com scope trained)
             |> makeReference (Naming.trainName skill trained.Name) range decl.export
         | Untyped.SkillDeclaration((name, range), generic, signatures) ->
-            let signatures = signatures |> List.map (checkSignature declMap scope)
+            let signatures = signatures |> List.map (checkSignature scope)
             SkillRef(generic, signatures)
             |> makeReference name range decl.export
         // TODO: Exported values cannot be mutable

@@ -2,6 +2,8 @@ enum Foo =
     | Bar
     | Baz(number, string)
 
+let du = Foo.Baz(4,"f")
+
 export skill Pretty<T> {
     prettify(x: T): string
 }
